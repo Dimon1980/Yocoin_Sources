@@ -1,20 +1,7 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2014-2018
+// License placeholder #1
 
-// Package state provides a caching layer atop the Ethereum state trie.
+// Package state provides a caching layer atop the YOC state trie.
 package state
 
 import (
@@ -408,7 +395,7 @@ func (self *StateDB) createObject(addr common.Address) (newobj, prev *stateObjec
 // CreateAccount explicitly creates a state object. If a state object with the address
 // already exists the balance is carried over to the new account.
 //
-// CreateAccount is called during the EVM CREATE operation. The situation might arise that
+// CreateAccount is called during the YVM CREATE operation. The situation might arise that
 // a contract does the following:
 //
 //   1. sends funds to sha(account ++ (nonce + 1))
@@ -534,7 +521,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
-// used when the EVM emits new state logs.
+// used when the YVM emits new state logs.
 func (self *StateDB) Prepare(thash, bhash common.Hash, ti int) {
 	self.thash = thash
 	self.bhash = bhash

@@ -1,18 +1,5 @@
-// Copyright 2017 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2017-2018
+// License placeholder #1
 
 // Package bmt provides a binary merkle tree implementation
 package bmt
@@ -37,7 +24,7 @@ It is used as the chunk hash function in swarm which in turn is the basis for th
 The BMT is optimal for providing compact inclusion proofs, i.e. prove that a
 segment is a substring of a chunk starting at a particular offset
 The size of the underlying segments is fixed at 32 bytes (called the resolution
-of the BMT hash), the EVM word size to optimize for on-chain BMT verification
+of the BMT hash), the YVM word size to optimize for on-chain BMT verification
 as well as the hash size optimal for inclusion proofs in the merkle tree of the swarm hash.
 
 Two implementations are provided:

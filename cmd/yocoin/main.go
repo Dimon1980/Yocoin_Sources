@@ -1,20 +1,7 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of go-ethereum.
-//
-// go-ethereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-ethereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2014-2018
+// License placeholder #1
 
-// geth is the official command-line client for Ethereum.
+// yocoin is the official command-line client for YOC.
 package main
 
 import (
@@ -28,28 +15,26 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/accounts"
 	"github.com/Yocoin15/Yocoin_Sources/accounts/keystore"
 	"github.com/Yocoin15/Yocoin_Sources/cmd/utils"
-	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/console"
-	"github.com/Yocoin15/Yocoin_Sources/eth"
-	"github.com/Yocoin15/Yocoin_Sources/ethclient"
 	"github.com/Yocoin15/Yocoin_Sources/internal/debug"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/metrics"
 	"github.com/Yocoin15/Yocoin_Sources/node"
+	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
+	"github.com/Yocoin15/Yocoin_Sources/yocclient"
 	"gopkg.in/urfave/cli.v1"
 )
 
 const (
-	clientIdentifier = "geth" // Client identifier to advertise over the network
+	clientIdentifier = "yocoin" // Client identifier to advertise over the network
 )
 
 var (
 	// Git SHA1 commit hash of the release (set via linker flags)
 	gitCommit = ""
-	// Ethereum address of the Geth release oracle.
-	relOracle = common.HexToAddress("0xfa7b9770ca4cb04296cac84f37736d4041251cdf")
 	// The app that holds all commands and flags.
-	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
+	app = utils.NewApp(gitCommit, "the yocoin command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.IdentityFlag,
@@ -99,7 +84,7 @@ var (
 		utils.MiningEnabledFlag,
 		utils.TargetGasLimitFlag,
 		utils.NATFlag,
-		utils.NoDiscoverFlag,
+		utils.EnableDiscoverFlag,
 		utils.DiscoveryV5Flag,
 		utils.NetrestrictFlag,
 		utils.NodeKeyFileFlag,
@@ -143,10 +128,10 @@ var (
 )
 
 func init() {
-	// Initialize the CLI app and start Geth
-	app.Action = geth
+	// Initialize the CLI app and start YoCoin
+	app.Action = yocoin
 	app.HideVersion = true // we have a command to print the version
-	app.Copyright = "Copyright 2013-2017 The go-ethereum Authors"
+	app.Copyright = "Copyright 2018 YoCoin"
 	app.Commands = []cli.Command{
 		// See chaincmd.go:
 		initCommand,
@@ -207,10 +192,10 @@ func main() {
 	}
 }
 
-// geth is the main entry point into the system if no special subcommand is ran.
+// yocoin is the main entry point into the system if no special subcommand is ran.
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
-func geth(ctx *cli.Context) error {
+func yocoin(ctx *cli.Context) error {
 	node := makeFullNode(ctx)
 	startNode(ctx, node)
 	node.Wait()
@@ -244,7 +229,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if err != nil {
 			utils.Fatalf("Failed to attach to self: %v", err)
 		}
-		stateReader := ethclient.NewClient(rpcClient)
+		stateReader := yocclient.NewClient(rpcClient)
 
 		// Open any wallets already attached
 		for _, wallet := range stack.AccountManager().Wallets() {
@@ -252,6 +237,15 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				log.Warn("Failed to open wallet", "url", wallet.URL(), "err", err)
 			}
 		}
+		// Also reconnect mainnet nodes automatically
+		for _, v := range params.MainnetBootnodes {
+			log.Debug("Forcing connection to node", "url", v)
+			err := rpcClient.Call(nil, "admin_addPeer", v)
+			if err != nil {
+				log.Warn("Failed force connection to node", "error", err)
+			}
+		}
+
 		// Listen for wallet event till termination
 		for event := range events {
 			switch event.Kind {
@@ -277,13 +271,13 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	}()
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		// Mining only makes sense if a full Ethereum node is running
+		// Mining only makes sense if a full YOC node is running
 		if ctx.GlobalBool(utils.LightModeFlag.Name) || ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
 		}
-		var ethereum *eth.Ethereum
+		var ethereum *yoc.YoCoin
 		if err := stack.Service(&ethereum); err != nil {
-			utils.Fatalf("Ethereum service not running: %v", err)
+			utils.Fatalf("YoCoin service not running: %v", err)
 		}
 		// Use a reduced number of threads if requested
 		if threads := ctx.GlobalInt(utils.MinerThreadsFlag.Name); threads > 0 {
