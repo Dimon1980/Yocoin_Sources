@@ -1,18 +1,5 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of go-ethereum.
-//
-// go-ethereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-ethereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2016-2018
+// License placeholder #1
 
 package main
 
@@ -38,7 +25,7 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/console"
 	"github.com/Yocoin15/Yocoin_Sources/contracts/ens"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/ethclient"
+	"github.com/Yocoin15/Yocoin_Sources/yocclient"
 	"github.com/Yocoin15/Yocoin_Sources/internal/debug"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/node"
@@ -102,7 +89,7 @@ var (
 	}
 	SwarmSwapAPIFlag = cli.StringFlag{
 		Name:   "swap-api",
-		Usage:  "URL of the Ethereum API provider to use to settle SWAP payments",
+		Usage:  "URL of the YoCoin API provider to use to settle SWAP payments",
 		EnvVar: SWARM_ENV_SWAP_API,
 	}
 	SwarmSyncEnabledFlag = cli.BoolTFlag{
@@ -112,7 +99,7 @@ var (
 	}
 	EnsAPIFlag = cli.StringFlag{
 		Name:   "ens-api",
-		Usage:  "URL of the Ethereum API provider to use for ENS record lookups",
+		Usage:  "URL of the YoCoin API provider to use for ENS record lookups",
 		EnvVar: SWARM_ENV_ENS_API,
 	}
 	EnsAddrFlag = cli.StringFlag{
@@ -153,7 +140,7 @@ var (
 
 	// the following flags are deprecated and should be removed in the future
 	DeprecatedEthAPIFlag = cli.StringFlag{
-		Name:  "ethapi",
+		Name:  "yocapi",
 		Usage: "DEPRECATED: please use --ens-api and --swap-api",
 	}
 )
@@ -176,7 +163,7 @@ func init() {
 	utils.ListenPortFlag.Value = 30399
 }
 
-var app = utils.NewApp(gitCommit, "Ethereum Swarm")
+var app = utils.NewApp(gitCommit, "YoCoin Swarm")
 
 // This init function creates the cli.App.
 func init() {
@@ -460,7 +447,7 @@ func detectEnsAddr(client *rpc.Client) (common.Address, error) {
 		return common.Address{}, err
 	}
 
-	block, err := ethclient.NewClient(client).BlockByNumber(ctx, big.NewInt(0))
+	block, err := yocclient.NewClient(client).BlockByNumber(ctx, big.NewInt(0))
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -484,24 +471,24 @@ func registerBzzService(bzzconfig *bzzapi.Config, ctx *cli.Context, stack *node.
 
 	//define the swarm service boot function
 	boot := func(ctx *node.ServiceContext) (node.Service, error) {
-		var swapClient *ethclient.Client
+		var swapClient *yocclient.Client
 		var err error
 		if bzzconfig.SwapApi != "" {
 			log.Info("connecting to SWAP API", "url", bzzconfig.SwapApi)
-			swapClient, err = ethclient.Dial(bzzconfig.SwapApi)
+			swapClient, err = yocclient.Dial(bzzconfig.SwapApi)
 			if err != nil {
 				return nil, fmt.Errorf("error connecting to SWAP API %s: %s", bzzconfig.SwapApi, err)
 			}
 		}
 
-		var ensClient *ethclient.Client
+		var ensClient *yocclient.Client
 		if bzzconfig.EnsApi != "" {
 			log.Info("connecting to ENS API", "url", bzzconfig.EnsApi)
 			client, err := rpc.Dial(bzzconfig.EnsApi)
 			if err != nil {
 				return nil, fmt.Errorf("error connecting to ENS API %s: %s", bzzconfig.EnsApi, err)
 			}
-			ensClient = ethclient.NewClient(client)
+			ensClient = yocclient.NewClient(client)
 
 			//no ENS root address set yet
 			if bzzconfig.EnsRoot == (common.Address{}) {

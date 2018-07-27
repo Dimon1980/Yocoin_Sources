@@ -1,64 +1,78 @@
-# yocoin
-# Preparing Ubuntu
 
-As root,
-
-> add-apt-repository ppa:gophers/archive
-> apt update
-> apt install golang-1.9-go
-
-Add user for builds:
-
-> useradd -m dev
-
-# Unpacking sources
-
-As dev,
-
-> mkdir -p ~/go/src/github.com`
-
-Put Yocoin15 to /home/dev/go/src/github.com`
-
-# Building sources
-
-
-> su - dev
-> cd ~/go/src/github.com/Yocoin15/Yocoin_Sources
-> /usr/lib/go-1.9/bin/go build -o ~/test cmd/yocoin/*.go
-
-
-Looks like:
-> dev@ubuntu-s-1vcpu-1gb-blr1-01:~/go/src/github.com/Yocoin15/Yocoin_Sources$ /usr/lib/go-1.9/bin/go build -o ~/test cmd/yocoin/*.go
-
-
-
-## Starting node
-
-1. Create new account(-s)
+##Install GO lang
 ```
-    ./yocoin account new
+sudo apt-get remove golang
+sudo apt autoremove
+wget https://dl.google.com/go/go1.9.7.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.9.7.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+
+
+mkdir -p ~/go/src/github.com/Yocoin15/
+rm -rf ~/go/src/github.com/Yocoin15/Yocoin_Sources
+git clone https://github.com/Yocoin15/Yocoin_Sources.git -b v2.0 ~/go/src/github.com/Yocoin15/Yocoin_Sources
+export GOPATH=~/go
+
+cd ~/go/src/github.com/Yocoin15/Yocoin_Sources
+
 ```
- 
-2. Initialize private net
+##Build .yocoin binary
 ```
-    ./yocoin init genesis.json
+go build -o yocoin cmd/yocoin/*.go
+
+
+./yocoin  --maxpeers 20 console
 ```
 
-3. Run new node with console mode
-```
-     ./yocoin  --networkid 13 console
-```
- 
 
+## COMMANDS
 
-4. Chech mining base address
+##first, run
 ```
-    > eth.coinbase
+yocoin account new
 ```
-4. Start mining to generate DAG
+##to list accounts:
 ```
-    > miner.start()
+yocoin account list
 ```
-5. For Exchanges
+##then run
+```
+yocoin console
+```
+````
+personal.unlockAccount("account_address")
+````
 
-https://github.com/ethereum/wiki/wiki/JSON-RPC#json-rpc-methods
+##, you may also use
+```
+personal.unlockAccount(eth.accounts[0])
+```
+
+##, or also specify password
+```
+personal.unlockAccount("account_address", "password", 300)
+```
+
+##where 300 is timeout in seconds to keep account unlocked
+##sending:
+```
+eth.sendTransaction({from:eth.accounts[0], to:"0x5adc90e0637eb8bf0f5022611214ee500afae06d", value:"17590519640"});
+```
+##get balance in 1/1000000000 YOCs:
+```
+web3.fromWei(eth.getBalance(eth.coinbase), "gwei")
+```
+##also you can do
+```
+miner.start()
+```
+##to run rpc methods
+
+##run
+```
+yocoin --rpc
+```
+##then do queries like in ethereum:
+```
+curl -X POST --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1} http://127.0.0.1:8545'
+```

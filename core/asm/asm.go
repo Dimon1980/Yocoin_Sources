@@ -1,20 +1,7 @@
-// Copyright 2017 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2017-2018
+// License placeholder #1
 
-// Provides support for dealing with EVM assembly instructions (e.g., disassembling them).
+// Provides support for dealing with YVM assembly instructions (e.g., disassembling them).
 package asm
 
 import (
@@ -24,7 +11,7 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 )
 
-// Iterator for disassembled EVM instructions
+// Iterator for disassembled YVM instructions
 type instructionIterator struct {
 	code    []byte
 	pc      uint64
@@ -99,7 +86,7 @@ func (it *instructionIterator) Arg() []byte {
 	return it.arg
 }
 
-// Pretty-print all disassembled EVM instructions to stdout.
+// Pretty-print all disassembled YVM instructions to stdout.
 func PrintDisassembled(code string) error {
 	script, err := hex.DecodeString(code)
 	if err != nil {
@@ -117,7 +104,7 @@ func PrintDisassembled(code string) error {
 	return it.Error()
 }
 
-// Return all disassembled EVM instructions in human-readable format.
+// Return all disassembled YVM instructions in human-readable format.
 func Disassemble(script []byte) ([]string, error) {
 	instrs := make([]string, 0)
 

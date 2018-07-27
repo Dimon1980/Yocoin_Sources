@@ -1,18 +1,5 @@
-// Copyright 2017 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2017-2018
+// License placeholder #1
 
 package tests
 
@@ -73,7 +60,7 @@ func withTrace(t *testing.T, gasLimit uint64, test func(vm.Config) error) {
 	}
 	t.Error(err)
 	if gasLimit > traceErrorLimit {
-		t.Log("gas limit too high for EVM trace")
+		t.Log("gas limit too high for YVM trace")
 		return
 	}
 	tracer := vm.NewStructLogger(nil)
@@ -84,10 +71,10 @@ func withTrace(t *testing.T, gasLimit uint64, test func(vm.Config) error) {
 	buf := new(bytes.Buffer)
 	vm.WriteTrace(buf, tracer.StructLogs())
 	if buf.Len() == 0 {
-		t.Log("no EVM operation logs generated")
+		t.Log("no YVM operation logs generated")
 	} else {
-		t.Log("EVM operation log:\n" + buf.String())
+		t.Log("YVM operation log:\n" + buf.String())
 	}
-	t.Logf("EVM output: 0x%x", tracer.Output())
-	t.Logf("EVM error: %v", tracer.Error())
+	t.Logf("YVM output: 0x%x", tracer.Output())
+	t.Logf("YVM error: %v", tracer.Error())
 }
