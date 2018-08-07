@@ -153,3 +153,54 @@ Sending coins (when you get some on the account):
     curl -s -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0", "method":"yoc_sendTransaction", "params":[{"from": "0xa042d63e84d2fa86fc4f8aa69832cf3eca3d94a0", "to": "0xa042d63e84d2fa86fc4f8aa69832cf3eca3d94a0", "value": "0x5F5E100"}], "id":4}' http://localhost:8545
 
 Value is in gwei (1/1000000000 YOC), and is HEX-encoded. (For reference, 0.1 YOC is 0x5F5E100)
+
+## RPC Methods
+
+Some of the method namespaces are disabled by default; see examples of using `--rpcapi` above.
+
+All methods are called either with array of arguments:
+
+    curl -k -s -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0", "method":"NAME", "params":["ARRAY", "OF", "VARARGS"],"id":1}' http://localhost:8545
+
+Or, with JSON object for argument:   
+
+    curl -k -s -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0", "method":"NAME", "params":[{"JSON": "FIELD"],"id":1}' http://localhost:8545
+
+"id" field is returned in response - useful when using same node for multiple requests which may be executed in variable order. Example response:
+
+### personal_newAccount
+
+* Requires 'personal' namespace to be enabled through `--rpcapi` option
+* By default, creates an account with empty password
+* Can takes a parameter: account password (plaintext)
+
+### personal_unlockAccount
+* Requires 'personal' namespace to be enabled through `--rpcapi` option
+* "Unlocks" account so it can be used for sending funds
+* Can take 1, 2 or 3 parameters: account address to unlock, unlock password and a timeout in seconds to keep account unlocked. Following variations can be used:
+    * ["0xAddress"]
+    * ["0xAddress", "password"]
+    * ["0xAddress", "password", 10000]
+
+### yoc_getBalance
+
+* Required 'yoc' namespace to be enabled through '--rpcapi' option
+* Checks a balance of account
+* Takes 2 parameters: account address to check balance, and balance type (use "latest")
+    * ["0xAddress", "latest"]
+  * Returns a HEX value of account in 1/1000000000 YOC equivalent
+
+### yoc_sendTransaction
+
+* Required 'yoc' namespace to be enabled through '--rpcapi' option
+* Sends YOC from one account to another
+* Takes 1 JSON object parameter, containing other parameters
+    * [{"from": "0x5adc90e0637eb8bf0f5022611214ee500afae06d", "to": "0x5adc90e0637eb8bf0f5022611214ee500afae06d", "value": "0x5F5E100"}]
+        * "from": address from which to withdraw
+        * "to": receiving address (OPTIONAL if creating new contract)
+        * "gas": (optional, default: 90000) Integer of the gas provided for the transaction execution. It will return unused gas.
+        * "gasPrice": QUANTITY - (OPTIONAL, default: To-Be-Determined) Integer of the gasPrice used for each paid gas
+        * "value": QUANTITY - (OPTIONAL) HEX-encoded integer of the value sent with this transaction. For YOC transaction, a value 
+        * "data": DATA - The compiled code of a contract OR the hash of the invoked method signature and encoded parameters.
+        * "nonce": QUANTITY - (OPTIONAL) Integer of a nonce. This allows to overwrite your own pending transactions that use the same nonce.
+
