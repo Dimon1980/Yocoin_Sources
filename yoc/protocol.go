@@ -17,22 +17,22 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	eth62 = 62
-	eth63 = 63
+	yoc62 = 62
+	yoc63 = 63
 )
 
 // Official short name of the protocol used during capability negotiation.
 var ProtocolName = "eth"
 
-// Supported versions of the eth protocol (first is primary).
-var ProtocolVersions = []uint{eth63, eth62}
+// ProtocolVersions are the upported versions of the yoc protocol (first is primary).
+var ProtocolVersions = []uint{yoc63, yoc62}
 
-// Number of implemented message corresponding to different protocol versions.
+// ProtocolLengths are the number of implemented message corresponding to different protocol versions.
 var ProtocolLengths = []uint64{17, 8}
 
 const ProtocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message
 
-// eth protocol message codes
+// yoc protocol message codes
 const (
 	// Protocol messages belonging to eth/62
 	StatusMsg          = 0x00
@@ -90,9 +90,9 @@ type txPool interface {
 	// The slice should be modifiable by the caller.
 	Pending() (map[common.Address]types.Transactions, error)
 
-	// SubscribeTxPreEvent should return an event subscription of
-	// TxPreEvent and send events to the given channel.
-	SubscribeTxPreEvent(chan<- core.TxPreEvent) event.Subscription
+	// SubscribeNewTxsEvent should return an event subscription of
+	// NewTxsEvent and send events to the given channel.
+	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 }
 
 // statusData is the network packet for the status message.

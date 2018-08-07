@@ -1,11 +1,11 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Package chequebook package wraps the 'chequebook' YOC smart contract.
+// Package chequebook package wraps the 'chequebook' YoCoin smart contract.
 //
 // The functions in this package allow using chequebook for
-// issuing, receiving, verifying cheques in ether; (auto)cashing cheques in ether
-// as well as (auto)depositing ether to the chequebook contract.
+// issuing, receiving, verifying cheques in yoc; (auto)cashing cheques in yoc
+// as well as (auto)depositing yoc to the chequebook contract.
 package chequebook
 
 //go:generate abigen --sol contract/chequebook.sol --exc contract/mortal.sol:mortal,contract/owned.sol:owned --pkg contract --out contract/chequebook.go
@@ -39,8 +39,8 @@ import (
 // Some functionality requires interacting with the blockchain:
 // * setting current balance on peer's chequebook
 // * sending the transaction to cash the cheque
-// * depositing ether to the chequebook
-// * watching incoming ether
+// * depositing yoc to the chequebook
+// * watching incoming yoc
 
 var (
 	gasToCash = uint64(2000000) // gas cost of a cash transaction using chequebook
@@ -607,7 +607,7 @@ func sig2vrs(sig []byte) (v byte, r, s [32]byte) {
 	return
 }
 
-// Cash cashes the cheque by sending an YOC transaction.
+// Cash cashes the cheque by sending an YoCoin transaction.
 func (self *Cheque) Cash(session *contract.ChequebookSession) (string, error) {
 	v, r, s := sig2vrs(self.Sig)
 	tx, err := session.Cash(self.Beneficiary, self.Amount, v, r, s)

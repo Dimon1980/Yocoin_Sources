@@ -1,21 +1,21 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Contains all the wrappers from the go-ethereum root package.
+// Contains all the wrappers from the yocoin root package.
 
-package geth
+package yocoin
 
 import (
 	"errors"
 
-	ethereum "github.com/Yocoin15/Yocoin_Sources"
+	yocoin "github.com/Yocoin15/Yocoin_Sources"
 	"github.com/Yocoin15/Yocoin_Sources/common"
 )
 
 // Subscription represents an event subscription where events are
 // delivered on a data channel.
 type Subscription struct {
-	sub ethereum.Subscription
+	sub yocoin.Subscription
 }
 
 // Unsubscribe cancels the sending of events to the data channel
@@ -26,7 +26,7 @@ func (s *Subscription) Unsubscribe() {
 
 // CallMsg contains parameters for contract calls.
 type CallMsg struct {
-	msg ethereum.CallMsg
+	msg yocoin.CallMsg
 }
 
 // NewCallMsg creates an empty contract call parameter list.
@@ -54,14 +54,15 @@ func (msg *CallMsg) SetData(data []byte)       { msg.msg.Data = common.CopyBytes
 func (msg *CallMsg) SetTo(address *Address) {
 	if address == nil {
 		msg.msg.To = nil
+		return
 	}
 	msg.msg.To = &address.address
 }
 
 // SyncProgress gives progress indications when the node is synchronising with
-// the YOC network.
+// the YoCoin network.
 type SyncProgress struct {
-	progress ethereum.SyncProgress
+	progress yocoin.SyncProgress
 }
 
 func (p *SyncProgress) GetStartingBlock() int64 { return int64(p.progress.StartingBlock) }
@@ -112,12 +113,12 @@ func (t *Topics) Append(topics *Hashes) {
 	t.topics = append(t.topics, topics.hashes)
 }
 
-// FilterQuery contains options for contact log filtering.
+// FilterQuery contains options for contract log filtering.
 type FilterQuery struct {
-	query ethereum.FilterQuery
+	query yocoin.FilterQuery
 }
 
-// NewFilterQuery creates an empty filter query for contact log filtering.
+// NewFilterQuery creates an empty filter query for contract log filtering.
 func NewFilterQuery() *FilterQuery {
 	return new(FilterQuery)
 }

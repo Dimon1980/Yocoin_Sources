@@ -69,7 +69,7 @@ func TestMatcherRandom(t *testing.T) {
 
 // Tests that the matcher can properly find matches if the starting block is
 // shifter from a multiple of 8. This is needed to cover an optimisation with
-// bitset matching https://github.com/Yocoin15/Yocoin_Sources/issues/15309.
+// bitset matching https://github.com/yocoin/go-yocoin/issues/15309.
 func TestMatcherShifted(t *testing.T) {
 	// Block 0 always matches in the tests, skip ahead of first 8 blocks with the
 	// start to get a potential zero byte in the matcher bitset.
@@ -143,7 +143,7 @@ func testMatcher(t *testing.T, filter [][]bloomIndexes, start, blocks uint64, in
 	// Track the number of retrieval requests made
 	var requested uint32
 
-	// Start the matching session for the filter and the retriver goroutines
+	// Start the matching session for the filter and the retriever goroutines
 	quit := make(chan struct{})
 	matches := make(chan uint64, 16)
 

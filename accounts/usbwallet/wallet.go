@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	ethereum "github.com/Yocoin15/Yocoin_Sources"
+	yocoin "github.com/Yocoin15/Yocoin_Sources"
 	"github.com/Yocoin15/Yocoin_Sources/accounts"
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
@@ -46,7 +46,7 @@ type driver interface {
 	// is still online and healthy.
 	Heartbeat() error
 
-	// Derive sends a derivation request to the USB device and returns the YOC
+	// Derive sends a derivation request to the USB device and returns the YoCoin
 	// address located on that path.
 	Derive(path accounts.DerivationPath) (common.Address, error)
 
@@ -69,11 +69,11 @@ type wallet struct {
 	accounts []accounts.Account                         // List of derive accounts pinned on the hardware wallet
 	paths    map[common.Address]accounts.DerivationPath // Known derivation paths for signing operations
 
-	deriveNextPath accounts.DerivationPath   // Next derivation path for account auto-discovery
-	deriveNextAddr common.Address            // Next derived account address for auto-discovery
-	deriveChain    ethereum.ChainStateReader // Blockchain state reader to discover used account with
-	deriveReq      chan chan struct{}        // Channel to request a self-derivation on
-	deriveQuit     chan chan error           // Channel to terminate the self-deriver with
+	deriveNextPath accounts.DerivationPath // Next derivation path for account auto-discovery
+	deriveNextAddr common.Address          // Next derived account address for auto-discovery
+	deriveChain    yocoin.ChainStateReader // Blockchain state reader to discover used account with
+	deriveReq      chan chan struct{}      // Channel to request a self-derivation on
+	deriveQuit     chan chan error         // Channel to terminate the self-deriver with
 
 	healthQuit chan chan error
 
@@ -86,7 +86,7 @@ type wallet struct {
 	//
 	// As such, a hardware wallet needs two locks to function correctly. A state
 	// lock can be used to protect the wallet's software-side internal state, which
-	// must not be held exlusively during hardware communication. A communication
+	// must not be held exclusively during hardware communication. A communication
 	// lock can be used to achieve exclusive access to the device itself, this one
 	// however should allow "skipping" waiting for operations that might want to
 	// use the device, but can live without too (e.g. account self-derivation).
@@ -333,7 +333,7 @@ func (w *wallet) selfDerive() {
 			context = context.Background()
 		)
 		for empty := false; !empty; {
-			// Retrieve the next derived YOC account
+			// Retrieve the next derived YoCoin account
 			if nextAddr == (common.Address{}) {
 				if nextAddr, err = w.driver.Derive(nextPath); err != nil {
 					w.log.Warn("USB wallet account derivation failed", "err", err)
@@ -471,7 +471,7 @@ func (w *wallet) Derive(path accounts.DerivationPath, pin bool) (accounts.Accoun
 // user used previously (based on the chain state), but ones that he/she did not
 // explicitly pin to the wallet manually. To avoid chain head monitoring, self
 // derivation only runs during account listing (and even then throttled).
-func (w *wallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainStateReader) {
+func (w *wallet) SelfDerive(base accounts.DerivationPath, chain yocoin.ChainStateReader) {
 	w.stateLock.Lock()
 	defer w.stateLock.Unlock()
 
@@ -492,7 +492,7 @@ func (w *wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error)
 // wallet to request a confirmation from the user. It returns either the signed
 // transaction or a failure if the user denied the transaction.
 //
-// Note, if the version of the YOC application running on the Ledger wallet is
+// Note, if the version of the YoCoin application running on the Ledger wallet is
 // too old to sign EIP-155 transactions, but such is requested nonetheless, an error
 // will be returned opposed to silently signing in Homestead mode.
 func (w *wallet) SignTx(account accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {

@@ -20,12 +20,12 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discover"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 var (
@@ -36,41 +36,41 @@ var (
 // newTestProtocolManager creates a new protocol manager for testing purposes,
 // with the given number of blocks already known, and potential notification
 // channels for different events.
-func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction) (*ProtocolManager, error) {
+func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction) (*ProtocolManager, *yocdb.MemDatabase, error) {
 	var (
-		evmux  = new(event.TypeMux)
+		yvmux  = new(event.TypeMux)
 		engine = yochash.NewFaker()
-		db, _  = yocdb.NewMemDatabase()
+		db     = yocdb.NewMemDatabase()
 		gspec  = &core.Genesis{
 			Config: params.TestChainConfig,
 			Alloc:  core.GenesisAlloc{testBank: {Balance: big.NewInt(1000000)}},
 		}
 		genesis       = gspec.MustCommit(db)
-		blockchain, _ = core.NewBlockChain(db, gspec.Config, engine, vm.Config{})
+		blockchain, _ = core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{})
 	)
 	chain, _ := core.GenerateChain(gspec.Config, genesis, yochash.NewFaker(), db, blocks, generator)
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		panic(err)
 	}
 
-	pm, err := NewProtocolManager(gspec.Config, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx}, engine, blockchain, db)
+	pm, err := NewProtocolManager(gspec.Config, mode, DefaultConfig.NetworkId, yvmux, &testTxPool{added: newtx}, engine, blockchain, db)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pm.Start(1000)
-	return pm, nil
+	return pm, db, nil
 }
 
 // newTestProtocolManagerMust creates a new protocol manager for testing purposes,
 // with the given number of blocks already known, and potential notification
 // channels for different events. In case of an error, the constructor force-
 // fails the test.
-func newTestProtocolManagerMust(t *testing.T, mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction) *ProtocolManager {
-	pm, err := newTestProtocolManager(mode, blocks, generator, newtx)
+func newTestProtocolManagerMust(t *testing.T, mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction) (*ProtocolManager, *yocdb.MemDatabase) {
+	pm, db, err := newTestProtocolManager(mode, blocks, generator, newtx)
 	if err != nil {
 		t.Fatalf("Failed to create protocol manager: %v", err)
 	}
-	return pm
+	return pm, db
 }
 
 // testTxPool is a fake, helper transaction pool for testing purposes
@@ -111,7 +111,7 @@ func (p *testTxPool) Pending() (map[common.Address]types.Transactions, error) {
 	return batches, nil
 }
 
-func (p *testTxPool) SubscribeTxPreEvent(ch chan<- core.TxPreEvent) event.Subscription {
+func (p *testTxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return p.txFeed.Subscribe(ch)
 }
 
@@ -153,8 +153,12 @@ func newTestPeer(name string, version int, pm *ProtocolManager, shake bool) (*te
 	tp := &testPeer{app: app, net: net, peer: peer}
 	// Execute any implicitly requested handshakes and return
 	if shake {
-		td, head, genesis := pm.blockchain.Status()
-		tp.handshake(nil, td, head, genesis)
+		var (
+			genesis = pm.blockchain.Genesis()
+			head    = pm.blockchain.CurrentHeader()
+			td      = pm.blockchain.GetTd(head.Hash(), head.Number.Uint64())
+		)
+		tp.handshake(nil, td, head.Hash(), genesis.Hash())
 	}
 	return tp, errc
 }

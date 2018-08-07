@@ -42,9 +42,9 @@ It has these top-level messages:
 	GetPublicKey
 	PublicKey
 	GetAddress
-	YoCoinGetAddress
+	EthereumGetAddress
 	Address
-	YoCoinAddress
+	EthereumAddress
 	WipeDevice
 	LoadDevice
 	ResetDevice
@@ -69,12 +69,12 @@ It has these top-level messages:
 	SimpleSignTx
 	TxRequest
 	TxAck
-	YoCoinSignTx
-	YoCoinTxRequest
-	YoCoinTxAck
-	YoCoinSignMessage
-	YoCoinVerifyMessage
-	YoCoinMessageSignature
+	EthereumSignTx
+	EthereumTxRequest
+	EthereumTxAck
+	EthereumSignMessage
+	EthereumVerifyMessage
+	EthereumMessageSignature
 	SignIdentity
 	SignedIdentity
 	GetECDHSessionKey

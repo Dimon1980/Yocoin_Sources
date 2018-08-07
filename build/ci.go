@@ -1,18 +1,5 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2015-2018
+// License placeholder #1
 
 // +build none
 
@@ -63,12 +50,12 @@ import (
 
 var (
 	// Files that end up in the yocoin*.zip archive.
-	gethArchiveFiles = []string{
+	yocoinArchiveFiles = []string{
 		"COPYING",
 		executablePath("yocoin"),
 	}
 
-	// Files that end up in the geth-alltools*.zip archive.
+	// Files that end up in the yocoin-alltools*.zip archive.
 	allToolsArchiveFiles = []string{
 		"COPYING",
 		executablePath("abigen"),
@@ -361,7 +348,7 @@ func doArchive(cmdline []string) {
 		arch   = flag.String("arch", runtime.GOARCH, "Architecture cross packaging")
 		atype  = flag.String("type", "zip", "Type of archive to write (zip|tar)")
 		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. LINUX_SIGNING_KEY)`)
-		upload = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
+		upload = flag.String("upload", "", `Destination to upload the archives (usually "yocoinstore/builds")`)
 		ext    string
 	)
 	flag.CommandLine.Parse(cmdline)
@@ -377,11 +364,11 @@ func doArchive(cmdline []string) {
 	var (
 		env      = build.Env()
 		base     = archiveBasename(*arch, env)
-		yocoin   = "yocoin-" + base + ext
-		alltools = "geth-alltools-" + base + ext
+		yocoin   = "yocoin-bundle-" + base + ext
+		alltools = "yocoin-alltools-" + base + ext
 	)
 	maybeSkipArchive(env)
-	if err := build.WriteArchive(yocoin, gethArchiveFiles); err != nil {
+	if err := build.WriteArchive(yocoin, yocoinArchiveFiles); err != nil {
 		log.Fatal(err)
 	}
 	if err := build.WriteArchive(alltools, allToolsArchiveFiles); err != nil {
@@ -409,7 +396,7 @@ func archiveBasename(arch string, env build.Environment) string {
 }
 
 func archiveVersion(env build.Environment) string {
-	version := build.VERSION()
+	version := "1.8.14"
 	if isUnstableBuild(env) {
 		version += "-unstable"
 	}
@@ -430,22 +417,6 @@ func archiveUpload(archive string, blobstore string, signer string) error {
 			return err
 		}
 	}
-	// If uploading to Azure was requested, push the archive possibly with its signature
-	if blobstore != "" {
-		auth := build.AzureBlobstoreConfig{
-			Account:   strings.Split(blobstore, "/")[0],
-			Token:     os.Getenv("AZURE_BLOBSTORE_TOKEN"),
-			Container: strings.SplitN(blobstore, "/", 2)[1],
-		}
-		if err := build.AzureBlobstoreUpload(archive, filepath.Base(archive), auth); err != nil {
-			return err
-		}
-		if signer != "" {
-			if err := build.AzureBlobstoreUpload(archive+".asc", filepath.Base(archive+".asc"), auth); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
@@ -459,10 +430,10 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping because this is a cron job")
 		os.Exit(0)
 	}
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
+	/*if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
 		log.Printf("skipping because branch %q, tag %q is not on the whitelist", env.Branch, env.Tag)
 		os.Exit(0)
-	}
+	}*/
 }
 
 // Debian Packaging
@@ -470,7 +441,7 @@ func maybeSkipArchive(env build.Environment) {
 func doDebianSource(cmdline []string) {
 	var (
 		signer  = flag.String("signer", "", `Signing key name, also used as package author`)
-		upload  = flag.String("upload", "", `Where to upload the source package (usually "ppa:ethereum/ethereum")`)
+		upload  = flag.String("upload", "", `Where to upload the source package (usually "ppa:yocoin/yocoin")`)
 		workdir = flag.String("workdir", "", `Output directory for packages (uses temp dir if unset)`)
 		now     = time.Now()
 	)
@@ -532,7 +503,7 @@ func isUnstableBuild(env build.Environment) bool {
 type debMetadata struct {
 	Env build.Environment
 
-	// go-ethereum version being built. Note that this
+	// yocoin version being built. Note that this
 	// is not the debian package version. The package version
 	// is constructed by VersionString.
 	Version string
@@ -549,13 +520,13 @@ type debExecutable struct {
 func newDebMetadata(distro, author string, env build.Environment, t time.Time) debMetadata {
 	if author == "" {
 		// No signing key, use default author.
-		author = "YoCoin Builds <fjl@ethereum.org>"
+		author = "YoCoin Builds <yocoin@yocoin.org>"
 	}
 	return debMetadata{
 		Env:         env,
 		Author:      author,
 		Distro:      distro,
-		Version:     build.VERSION(),
+		Version:     "1.8.14",
 		Time:        t.Format(time.RFC1123Z),
 		Executables: debExecutables,
 	}
@@ -565,9 +536,9 @@ func newDebMetadata(distro, author string, env build.Environment, t time.Time) d
 // on all executable packages.
 func (meta debMetadata) Name() string {
 	if isUnstableBuild(meta.Env) {
-		return "ethereum-unstable"
+		return "yocoin-bundle-unstable"
 	}
-	return "ethereum"
+	return "yocoin-bundle"
 }
 
 // VersionString returns the debian version of the packages.
@@ -611,7 +582,7 @@ func (meta debMetadata) ExeConflicts(exe debExecutable) string {
 		// be preferred and the conflicting files should be handled via
 		// alternates. We might do this eventually but using a conflict is
 		// easier now.
-		return "ethereum, " + exe.Name
+		return "yocoin, " + exe.Name
 	}
 	return ""
 }
@@ -651,7 +622,7 @@ func doWindowsInstaller(cmdline []string) {
 	var (
 		arch    = flag.String("arch", runtime.GOARCH, "Architecture for cross build packaging")
 		signer  = flag.String("signer", "", `Environment variable holding the signing key (e.g. WINDOWS_SIGNING_KEY)`)
-		upload  = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
+		upload  = flag.String("upload", "", `Destination to upload the archives (usually "yocoinstore/builds")`)
 		workdir = flag.String("workdir", "", `Output directory for packages (uses temp dir if unset)`)
 	)
 	flag.CommandLine.Parse(cmdline)
@@ -661,8 +632,8 @@ func doWindowsInstaller(cmdline []string) {
 
 	// Aggregate binaries that are included in the installer
 	var (
-		devTools []string
-		allTools []string
+		devTools   []string
+		allTools   []string
 		yocoinTool string
 	)
 	for _, file := range allToolsArchiveFiles {
@@ -681,10 +652,10 @@ func doWindowsInstaller(cmdline []string) {
 	// first section contains the yocoin binary, second section holds the dev tools.
 	templateData := map[string]interface{}{
 		"License":  "COPYING",
-		"Geth":     yocoinTool,
+		"Yocoin":   yocoinTool,
 		"DevTools": devTools,
 	}
-	build.Render("build/nsis.geth.nsi", filepath.Join(*workdir, "geth.nsi"), 0644, nil)
+	build.Render("build/nsis.yocoin.nsi", filepath.Join(*workdir, "yocoin.nsi"), 0644, nil)
 	build.Render("build/nsis.install.nsh", filepath.Join(*workdir, "install.nsh"), 0644, templateData)
 	build.Render("build/nsis.uninstall.nsh", filepath.Join(*workdir, "uninstall.nsh"), 0644, allTools)
 	build.Render("build/nsis.pathupdate.nsh", filepath.Join(*workdir, "PathUpdate.nsh"), 0644, nil)
@@ -695,7 +666,7 @@ func doWindowsInstaller(cmdline []string) {
 	// Build the installer. This assumes that all the needed files have been previously
 	// built (don't mix building and packaging to keep cross compilation complexity to a
 	// minimum).
-	version := strings.Split(build.VERSION(), ".")
+	version := strings.Split("1.8.14", ".")
 	if env.Commit != "" {
 		version[2] += "-" + env.Commit[:8]
 	}
@@ -706,7 +677,7 @@ func doWindowsInstaller(cmdline []string) {
 		"/DMINORVERSION="+version[1],
 		"/DBUILDVERSION="+version[2],
 		"/DARCH="+*arch,
-		filepath.Join(*workdir, "geth.nsi"),
+		filepath.Join(*workdir, "yocoin.nsi"),
 	)
 
 	// Sign and publish installer.
@@ -718,67 +689,6 @@ func doWindowsInstaller(cmdline []string) {
 // Android archives
 
 func doAndroidArchive(cmdline []string) {
-	var (
-		local  = flag.Bool("local", false, `Flag whether we're only doing a local build (skip Maven artifacts)`)
-		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. ANDROID_SIGNING_KEY)`)
-		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "https://oss.sonatype.org")`)
-		upload = flag.String("upload", "", `Destination to upload the archive (usually "gethstore/builds")`)
-	)
-	flag.CommandLine.Parse(cmdline)
-	env := build.Env()
-
-	// Sanity check that the SDK and NDK are installed and set
-	if os.Getenv("ANDROID_HOME") == "" {
-		log.Fatal("Please ensure ANDROID_HOME points to your Android SDK")
-	}
-	if os.Getenv("ANDROID_NDK") == "" {
-		log.Fatal("Please ensure ANDROID_NDK points to your Android NDK")
-	}
-	// Build the Android archive and Maven resources
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
-	build.MustRun(gomobileTool("init", "--ndk", os.Getenv("ANDROID_NDK")))
-	build.MustRun(gomobileTool("bind", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/Yocoin15/Yocoin_Sources/mobile"))
-
-	if *local {
-		// If we're building locally, copy bundle to build dir and skip Maven
-		os.Rename("yocoin.aar", filepath.Join(GOBIN, "yocoin.aar"))
-		return
-	}
-	meta := newMavenMetadata(env)
-	build.Render("build/mvn.pom", meta.Package+".pom", 0755, meta)
-
-	// Skip Maven deploy and Azure upload for PR builds
-	maybeSkipArchive(env)
-
-	// Sign and upload the archive to Azure
-	archive := "yocoin-" + archiveBasename("android", env) + ".aar"
-	os.Rename("yocoin.aar", archive)
-
-	if err := archiveUpload(archive, *upload, *signer); err != nil {
-		log.Fatal(err)
-	}
-	// Sign and upload all the artifacts to Maven Central
-	os.Rename(archive, meta.Package+".aar")
-	if *signer != "" && *deploy != "" {
-		// Import the signing key into the local GPG instance
-		if b64key := os.Getenv(*signer); b64key != "" {
-			key, err := base64.StdEncoding.DecodeString(b64key)
-			if err != nil {
-				log.Fatalf("invalid base64 %s", *signer)
-			}
-			gpg := exec.Command("gpg", "--import")
-			gpg.Stdin = bytes.NewReader(key)
-			build.MustRun(gpg)
-		}
-		// Upload the artifacts to Sonatype and/or Maven Central
-		repo := *deploy + "/service/local/staging/deploy/maven2"
-		if meta.Develop {
-			repo = *deploy + "/content/repositories/snapshots"
-		}
-		build.MustRunCommand("mvn", "gpg:sign-and-deploy-file",
-			"-settings=build/mvn.settings", "-Durl="+repo, "-DrepositoryId=ossrh",
-			"-DpomFile="+meta.Package+".pom", "-Dfile="+meta.Package+".aar")
-	}
 }
 
 func gomobileTool(subcmd string, args ...string) *exec.Cmd {
@@ -830,10 +740,10 @@ func newMavenMetadata(env build.Environment) mavenMetadata {
 		}
 	}
 	// Render the version and package strings
-	version := build.VERSION()
-	if isUnstableBuild(env) {
-		version += "-SNAPSHOT"
-	}
+	version := "1.8.14"
+//	if isUnstableBuild(env) {
+//		version += "-SNAPSHOT"
+//	}
 	return mavenMetadata{
 		Version:      version,
 		Package:      "yocoin-" + version,
@@ -845,47 +755,6 @@ func newMavenMetadata(env build.Environment) mavenMetadata {
 // XCode frameworks
 
 func doXCodeFramework(cmdline []string) {
-	var (
-		local  = flag.Bool("local", false, `Flag whether we're only doing a local build (skip Maven artifacts)`)
-		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. IOS_SIGNING_KEY)`)
-		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "trunk")`)
-		upload = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
-	)
-	flag.CommandLine.Parse(cmdline)
-	env := build.Env()
-
-	// Build the iOS XCode framework
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
-	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "--target", "ios", "--tags", "ios", "-v", "github.com/Yocoin15/Yocoin_Sources/mobile")
-
-	if *local {
-		// If we're building locally, use the build folder and stop afterwards
-		bind.Dir, _ = filepath.Abs(GOBIN)
-		build.MustRun(bind)
-		return
-	}
-	archive := "yocoin-" + archiveBasename("ios", env)
-	if err := os.Mkdir(archive, os.ModePerm); err != nil {
-		log.Fatal(err)
-	}
-	bind.Dir, _ = filepath.Abs(archive)
-	build.MustRun(bind)
-	build.MustRunCommand("tar", "-zcvf", archive+".tar.gz", archive)
-
-	// Skip CocoaPods deploy and Azure upload for PR builds
-	maybeSkipArchive(env)
-
-	// Sign and upload the framework to Azure
-	if err := archiveUpload(archive+".tar.gz", *upload, *signer); err != nil {
-		log.Fatal(err)
-	}
-	// Prepare and upload a PodSpec to CocoaPods
-	if *deploy != "" {
-		meta := newPodMetadata(env, archive)
-		build.Render("build/pod.podspec", "Geth.podspec", 0755, meta)
-		build.MustRunCommand("pod", *deploy, "push", "Geth.podspec", "--allow-warnings", "--verbose")
-	}
 }
 
 type podMetadata struct {
@@ -921,10 +790,10 @@ func newPodMetadata(env build.Environment, archive string) podMetadata {
 			}
 		}
 	}
-	version := build.VERSION()
-	if isUnstableBuild(env) {
-		version += "-unstable." + env.Buildnum
-	}
+	version := "1.8.14"
+//	if isUnstableBuild(env) {
+//		version += "-unstable." + env.Buildnum
+//	}
 	return podMetadata{
 		Archive:      archive,
 		Version:      version,
@@ -988,58 +857,4 @@ func xgoTool(args []string) *exec.Cmd {
 // Binary distribution cleanups
 
 func doPurge(cmdline []string) {
-	var (
-		store = flag.String("store", "", `Destination from where to purge archives (usually "gethstore/builds")`)
-		limit = flag.Int("days", 30, `Age threshold above which to delete unstalbe archives`)
-	)
-	flag.CommandLine.Parse(cmdline)
-
-	if env := build.Env(); !env.IsCronJob {
-		log.Printf("skipping because not a cron job")
-		os.Exit(0)
-	}
-	// Create the azure authentication and list the current archives
-	auth := build.AzureBlobstoreConfig{
-		Account:   strings.Split(*store, "/")[0],
-		Token:     os.Getenv("AZURE_BLOBSTORE_TOKEN"),
-		Container: strings.SplitN(*store, "/", 2)[1],
-	}
-	blobs, err := build.AzureBlobstoreList(auth)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Iterate over the blobs, collect and sort all unstable builds
-	for i := 0; i < len(blobs); i++ {
-		if !strings.Contains(blobs[i].Name, "unstable") {
-			blobs = append(blobs[:i], blobs[i+1:]...)
-			i--
-		}
-	}
-	for i := 0; i < len(blobs); i++ {
-		for j := i + 1; j < len(blobs); j++ {
-			iTime, err := time.Parse(time.RFC1123, blobs[i].Properties.LastModified)
-			if err != nil {
-				log.Fatal(err)
-			}
-			jTime, err := time.Parse(time.RFC1123, blobs[j].Properties.LastModified)
-			if err != nil {
-				log.Fatal(err)
-			}
-			if iTime.After(jTime) {
-				blobs[i], blobs[j] = blobs[j], blobs[i]
-			}
-		}
-	}
-	// Filter out all archives more recent that the given threshold
-	for i, blob := range blobs {
-		timestamp, _ := time.Parse(time.RFC1123, blob.Properties.LastModified)
-		if time.Since(timestamp) < time.Duration(*limit)*24*time.Hour {
-			blobs = blobs[:i]
-			break
-		}
-	}
-	// Delete all marked as such and return
-	if err := build.AzureBlobstoreDelete(auth, blobs); err != nil {
-		log.Fatal(err)
-	}
 }

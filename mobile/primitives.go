@@ -3,7 +3,7 @@
 
 // Contains various wrappers for primitive types.
 
-package geth
+package yocoin
 
 import (
 	"errors"

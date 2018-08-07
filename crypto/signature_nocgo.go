@@ -55,7 +55,7 @@ func Sign(hash []byte, prv *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Convert to YOC signature format with 'recovery id' v at the end.
+	// Convert to YoCoin signature format with 'recovery id' v at the end.
 	v := sig[0] - 27
 	copy(sig, sig[1:])
 	sig[64] = v
@@ -75,7 +75,7 @@ func VerifySignature(pubkey, hash, signature []byte) bool {
 		return false
 	}
 	// Reject malleable signatures. libsecp256k1 does this check but btcec doesn't.
-	if sig.S.Cmp(secp256k1_halfN) > 0 {
+	if sig.S.Cmp(secp256k1halfN) > 0 {
 		return false
 	}
 	return sig.Verify(hash, key)

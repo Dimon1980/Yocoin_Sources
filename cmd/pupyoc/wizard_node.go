@@ -35,15 +35,15 @@ func (w *wizard) deployNode(boot bool) {
 	infos, err := checkNode(client, w.network, boot)
 	if err != nil {
 		if boot {
-			infos = &nodeInfos{portFull: 30303, peersTotal: 512, peersLight: 256}
+			infos = &nodeInfos{port: 30303, peersTotal: 512, peersLight: 256}
 		} else {
-			infos = &nodeInfos{portFull: 30303, peersTotal: 50, peersLight: 0, gasTarget: 4.7, gasPrice: 18}
+			infos = &nodeInfos{port: 30303, peersTotal: 50, peersLight: 0, gasTarget: 4.7, gasPrice: 18}
 		}
 	}
 	existed := err == nil
 
 	infos.genesis, _ = json.MarshalIndent(w.conf.Genesis, "", "  ")
-	infos.network = w.conf.Genesis.Config.ChainId.Int64()
+	infos.network = w.conf.Genesis.Config.ChainID.Int64()
 
 	// Figure out where the user wants to store the persistent data
 	fmt.Println()
@@ -54,20 +54,20 @@ func (w *wizard) deployNode(boot bool) {
 		fmt.Printf("Where should data be stored on the remote machine? (default = %s)\n", infos.datadir)
 		infos.datadir = w.readDefaultString(infos.datadir)
 	}
-	if w.conf.Genesis.Config.Ethash != nil && !boot {
+	if w.conf.Genesis.Config.Yochash != nil && !boot {
 		fmt.Println()
-		if infos.ethashdir == "" {
-			fmt.Printf("Where should the ethash mining DAGs be stored on the remote machine?\n")
-			infos.ethashdir = w.readString()
+		if infos.yochashdir == "" {
+			fmt.Printf("Where should the yochash mining DAGs be stored on the remote machine?\n")
+			infos.yochashdir = w.readString()
 		} else {
-			fmt.Printf("Where should the ethash mining DAGs be stored on the remote machine? (default = %s)\n", infos.ethashdir)
-			infos.ethashdir = w.readDefaultString(infos.ethashdir)
+			fmt.Printf("Where should the yochash mining DAGs be stored on the remote machine? (default = %s)\n", infos.yochashdir)
+			infos.yochashdir = w.readDefaultString(infos.yochashdir)
 		}
 	}
 	// Figure out which port to listen on
 	fmt.Println()
-	fmt.Printf("Which TCP/UDP port to listen on? (default = %d)\n", infos.portFull)
-	infos.portFull = w.readDefaultInt(infos.portFull)
+	fmt.Printf("Which TCP/UDP port to listen on? (default = %d)\n", infos.port)
+	infos.port = w.readDefaultInt(infos.port)
 
 	// Figure out how many peers to allow (different based on node type)
 	fmt.Println()
@@ -90,20 +90,20 @@ func (w *wizard) deployNode(boot bool) {
 	}
 	// If the node is a miner/signer, load up needed credentials
 	if !boot {
-		if w.conf.Genesis.Config.Ethash != nil {
-			// Ethash based miners only need an etherbase to mine against
+		if w.conf.Genesis.Config.Yochash != nil {
+			// Yochash based miners only need an yocbase to mine against
 			fmt.Println()
-			if infos.etherbase == "" {
-				fmt.Printf("What address should the miner user?\n")
+			if infos.yocbase == "" {
+				fmt.Printf("What address should the miner use?\n")
 				for {
 					if address := w.readAddress(); address != nil {
-						infos.etherbase = address.Hex()
+						infos.yocbase = address.Hex()
 						break
 					}
 				}
 			} else {
-				fmt.Printf("What address should the miner user? (default = %s)\n", infos.etherbase)
-				infos.etherbase = w.readDefaultAddress(common.HexToAddress(infos.etherbase)).Hex()
+				fmt.Printf("What address should the miner use? (default = %s)\n", infos.yocbase)
+				infos.yocbase = w.readDefaultAddress(common.HexToAddress(infos.yocbase)).Hex()
 			}
 		} else if w.conf.Genesis.Config.Clique != nil {
 			// If a previous signer was already set, offer to reuse it
@@ -150,8 +150,8 @@ func (w *wizard) deployNode(boot bool) {
 		fmt.Printf("Should the node be built from scratch (y/n)? (default = no)\n")
 		nocache = w.readDefaultString("n") != "n"
 	}
-	if out, err := deployNode(client, w.network, w.conf.bootFull, w.conf.bootLight, infos, nocache); err != nil {
-		log.Error("Failed to deploy YOC node container", "err", err)
+	if out, err := deployNode(client, w.network, w.conf.bootnodes, infos, nocache); err != nil {
+		log.Error("Failed to deploy YoCoin node container", "err", err)
 		if len(out) > 0 {
 			fmt.Printf("%s\n", out)
 		}

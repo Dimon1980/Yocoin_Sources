@@ -22,8 +22,8 @@ func (w *wizard) deployExplorer() {
 		log.Error("No yocstats server configured")
 		return
 	}
-	if w.conf.Genesis.Config.Ethash == nil {
-		log.Error("Only ethash network supported")
+	if w.conf.Genesis.Config.Yochash == nil {
+		log.Error("Only yochash network supported")
 		return
 	}
 	// Select the server to interact with
@@ -42,7 +42,7 @@ func (w *wizard) deployExplorer() {
 	}
 	existed := err == nil
 
-	chainspec, err := newParityChainSpec(w.network, w.conf.Genesis, w.conf.bootFull)
+	chainspec, err := newParityChainSpec(w.network, w.conf.Genesis, w.conf.bootnodes)
 	if err != nil {
 		log.Error("Failed to create chain spec for explorer", "err", err)
 		return

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/nat"
+	"github.com/Yocoin15/Yocoin_Sources/rpc"
 )
 
 const (
@@ -22,11 +23,13 @@ const (
 
 // DefaultConfig contains reasonable default settings.
 var DefaultConfig = Config{
-	DataDir:     DefaultDataDir(),
-	HTTPPort:    DefaultHTTPPort,
-	HTTPModules: []string{"net", "web3"},
-	WSPort:      DefaultWSPort,
-	WSModules:   []string{"net", "web3"},
+	DataDir:          DefaultDataDir(),
+	HTTPPort:         DefaultHTTPPort,
+	HTTPModules:      []string{"net", "web3"},
+	HTTPVirtualHosts: []string{"localhost"},
+	HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
+	WSPort:           DefaultWSPort,
+	WSModules:        []string{"net", "web3"},
 	P2P: p2p.Config{
 		ListenAddr: ":30303",
 		MaxPeers:   25,
@@ -41,9 +44,9 @@ func DefaultDataDir() string {
 	home := homeDir()
 	if home != "" {
 		if runtime.GOOS == "darwin" {
-			return filepath.Join(home, "Library", "Yocoin")
+			return filepath.Join(home, "Library", "YoCoin")
 		} else if runtime.GOOS == "windows" {
-			return filepath.Join(home, "AppData", "Roaming", "Yocoin")
+			return filepath.Join(home, "AppData", "Roaming", "YoCoin")
 		} else {
 			return filepath.Join(home, ".yocoin")
 		}

@@ -40,10 +40,10 @@ Create the source packages:
 
 Then go into the source package directory for your running distribution and build the package:
 
-    $ cd dist/ethereum-unstable-1.6.0+xenial
+    $ cd dist/yocoin-unstable-1.6.0+xenial
     $ dpkg-buildpackage
 
 Built packages are placed in the dist/ directory.
 
     $ cd ..
-    $ dpkg-deb -c geth-unstable_1.6.0+xenial_amd64.deb
+    $ dpkg-deb -c yocoin-unstable_1.6.0+xenial_amd64.deb

@@ -12,16 +12,17 @@ import (
 	"testing"
 	"time"
 
-	ethereum "github.com/Yocoin15/Yocoin_Sources"
+	yocoin "github.com/Yocoin15/Yocoin_Sources"
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/bloombits"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type testBackend struct {
@@ -43,24 +44,54 @@ func (b *testBackend) EventMux() *event.TypeMux {
 }
 
 func (b *testBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error) {
-	var hash common.Hash
-	var num uint64
+	var (
+		hash common.Hash
+		num  uint64
+	)
 	if blockNr == rpc.LatestBlockNumber {
-		hash = core.GetHeadBlockHash(b.db)
-		num = core.GetBlockNumber(b.db, hash)
+		hash = rawdb.ReadHeadBlockHash(b.db)
+		number := rawdb.ReadHeaderNumber(b.db, hash)
+		if number == nil {
+			return nil, nil
+		}
+		num = *number
 	} else {
 		num = uint64(blockNr)
-		hash = core.GetCanonicalHash(b.db, num)
+		hash = rawdb.ReadCanonicalHash(b.db, num)
 	}
-	return core.GetHeader(b.db, hash, num), nil
+	return rawdb.ReadHeader(b.db, hash, num), nil
 }
 
-func (b *testBackend) GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
-	num := core.GetBlockNumber(b.db, blockHash)
-	return core.GetBlockReceipts(b.db, blockHash, num), nil
+func (b *testBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	number := rawdb.ReadHeaderNumber(b.db, hash)
+	if number == nil {
+		return nil, nil
+	}
+	return rawdb.ReadHeader(b.db, hash, *number), nil
 }
 
-func (b *testBackend) SubscribeTxPreEvent(ch chan<- core.TxPreEvent) event.Subscription {
+func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
+	if number := rawdb.ReadHeaderNumber(b.db, hash); number != nil {
+		return rawdb.ReadReceipts(b.db, hash, *number), nil
+	}
+	return nil, nil
+}
+
+func (b *testBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
+	number := rawdb.ReadHeaderNumber(b.db, hash)
+	if number == nil {
+		return nil, nil
+	}
+	receipts := rawdb.ReadReceipts(b.db, hash, *number)
+
+	logs := make([][]*types.Log, len(receipts))
+	for i, receipt := range receipts {
+		logs[i] = receipt.Logs
+	}
+	return logs, nil
+}
+
+func (b *testBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return b.txFeed.Subscribe(ch)
 }
 
@@ -97,8 +128,8 @@ func (b *testBackend) ServiceFilter(ctx context.Context, session *bloombits.Matc
 				task.Bitsets = make([][]byte, len(task.Sections))
 				for i, section := range task.Sections {
 					if rand.Int()%4 != 0 { // Handle occasional missing deliveries
-						head := core.GetCanonicalHash(b.db, (section+1)*params.BloomBitsBlocks-1)
-						task.Bitsets[i], _ = core.GetBloomBits(b.db, task.Bit, section, head)
+						head := rawdb.ReadCanonicalHash(b.db, (section+1)*params.BloomBitsBlocks-1)
+						task.Bitsets[i], _ = rawdb.ReadBloomBits(b.db, task.Bit, section, head)
 					}
 				}
 				request <- task
@@ -117,7 +148,7 @@ func TestBlockSubscription(t *testing.T) {
 
 	var (
 		mux         = new(event.TypeMux)
-		db, _       = yocdb.NewMemDatabase()
+		db          = yocdb.NewMemDatabase()
 		txFeed      = new(event.Feed)
 		rmLogsFeed  = new(event.Feed)
 		logsFeed    = new(event.Feed)
@@ -174,7 +205,7 @@ func TestPendingTxFilter(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db, _      = yocdb.NewMemDatabase()
+		db         = yocdb.NewMemDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -196,10 +227,7 @@ func TestPendingTxFilter(t *testing.T) {
 	fid0 := api.NewPendingTransactionFilter()
 
 	time.Sleep(1 * time.Second)
-	for _, tx := range transactions {
-		ev := core.TxPreEvent{Tx: tx}
-		txFeed.Send(ev)
-	}
+	txFeed.Send(core.NewTxsEvent{Txs: transactions})
 
 	timeout := time.Now().Add(1 * time.Second)
 	for {
@@ -237,7 +265,7 @@ func TestPendingTxFilter(t *testing.T) {
 func TestLogFilterCreation(t *testing.T) {
 	var (
 		mux        = new(event.TypeMux)
-		db, _      = yocdb.NewMemDatabase()
+		db         = yocdb.NewMemDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -286,7 +314,7 @@ func TestInvalidLogFilterCreation(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db, _      = yocdb.NewMemDatabase()
+		db         = yocdb.NewMemDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -310,13 +338,40 @@ func TestInvalidLogFilterCreation(t *testing.T) {
 	}
 }
 
+func TestInvalidGetLogsRequest(t *testing.T) {
+	var (
+		mux        = new(event.TypeMux)
+		db         = yocdb.NewMemDatabase()
+		txFeed     = new(event.Feed)
+		rmLogsFeed = new(event.Feed)
+		logsFeed   = new(event.Feed)
+		chainFeed  = new(event.Feed)
+		backend    = &testBackend{mux, db, 0, txFeed, rmLogsFeed, logsFeed, chainFeed}
+		api        = NewPublicFilterAPI(backend, false)
+		blockHash  = common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	)
+
+	// Reason: Cannot specify both BlockHash and FromBlock/ToBlock)
+	testCases := []FilterCriteria{
+		0: {BlockHash: &blockHash, FromBlock: big.NewInt(100)},
+		1: {BlockHash: &blockHash, ToBlock: big.NewInt(500)},
+		2: {BlockHash: &blockHash, FromBlock: big.NewInt(rpc.LatestBlockNumber.Int64())},
+	}
+
+	for i, test := range testCases {
+		if _, err := api.GetLogs(context.Background(), test); err == nil {
+			t.Errorf("Expected Logs for case #%d to fail", i)
+		}
+	}
+}
+
 // TestLogFilter tests whether log filters match the correct logs that are posted to the event feed.
 func TestLogFilter(t *testing.T) {
 	t.Parallel()
 
 	var (
 		mux        = new(event.TypeMux)
-		db, _      = yocdb.NewMemDatabase()
+		db         = yocdb.NewMemDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -435,7 +490,7 @@ func TestPendingLogsSubscription(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db, _      = yocdb.NewMemDatabase()
+		db         = yocdb.NewMemDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -476,27 +531,27 @@ func TestPendingLogsSubscription(t *testing.T) {
 		}
 
 		testCases = []struct {
-			crit     ethereum.FilterQuery
+			crit     yocoin.FilterQuery
 			expected []*types.Log
 			c        chan []*types.Log
 			sub      *Subscription
 		}{
 			// match all
-			{ethereum.FilterQuery{}, convertLogs(allLogs), nil, nil},
+			{yocoin.FilterQuery{}, convertLogs(allLogs), nil, nil},
 			// match none due to no matching addresses
-			{ethereum.FilterQuery{Addresses: []common.Address{{}, notUsedAddress}, Topics: [][]common.Hash{nil}}, []*types.Log{}, nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{{}, notUsedAddress}, Topics: [][]common.Hash{nil}}, []*types.Log{}, nil, nil},
 			// match logs based on addresses, ignore topics
-			{ethereum.FilterQuery{Addresses: []common.Address{firstAddr}}, append(convertLogs(allLogs[:2]), allLogs[5].Logs[3]), nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{firstAddr}}, append(convertLogs(allLogs[:2]), allLogs[5].Logs[3]), nil, nil},
 			// match none due to no matching topics (match with address)
-			{ethereum.FilterQuery{Addresses: []common.Address{secondAddr}, Topics: [][]common.Hash{{notUsedTopic}}}, []*types.Log{}, nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{secondAddr}, Topics: [][]common.Hash{{notUsedTopic}}}, []*types.Log{}, nil, nil},
 			// match logs based on addresses and topics
-			{ethereum.FilterQuery{Addresses: []common.Address{thirdAddress}, Topics: [][]common.Hash{{firstTopic, secondTopic}}}, append(convertLogs(allLogs[3:5]), allLogs[5].Logs[0]), nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{thirdAddress}, Topics: [][]common.Hash{{firstTopic, secondTopic}}}, append(convertLogs(allLogs[3:5]), allLogs[5].Logs[0]), nil, nil},
 			// match logs based on multiple addresses and "or" topics
-			{ethereum.FilterQuery{Addresses: []common.Address{secondAddr, thirdAddress}, Topics: [][]common.Hash{{firstTopic, secondTopic}}}, append(convertLogs(allLogs[2:5]), allLogs[5].Logs[0]), nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{secondAddr, thirdAddress}, Topics: [][]common.Hash{{firstTopic, secondTopic}}}, append(convertLogs(allLogs[2:5]), allLogs[5].Logs[0]), nil, nil},
 			// block numbers are ignored for filters created with New***Filter, these return all logs that match the given criteria when the state changes
-			{ethereum.FilterQuery{Addresses: []common.Address{firstAddr}, FromBlock: big.NewInt(2), ToBlock: big.NewInt(3)}, append(convertLogs(allLogs[:2]), allLogs[5].Logs[3]), nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{firstAddr}, FromBlock: big.NewInt(2), ToBlock: big.NewInt(3)}, append(convertLogs(allLogs[:2]), allLogs[5].Logs[3]), nil, nil},
 			// multiple pending logs, should match only 2 topics from the logs in block 5
-			{ethereum.FilterQuery{Addresses: []common.Address{thirdAddress}, Topics: [][]common.Hash{{firstTopic, fourthTopic}}}, []*types.Log{allLogs[5].Logs[0], allLogs[5].Logs[2]}, nil, nil},
+			{yocoin.FilterQuery{Addresses: []common.Address{thirdAddress}, Topics: [][]common.Hash{{firstTopic, fourthTopic}}}, []*types.Log{allLogs[5].Logs[0], allLogs[5].Logs[2]}, nil, nil},
 		}
 	)
 

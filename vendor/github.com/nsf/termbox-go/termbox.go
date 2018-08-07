@@ -41,14 +41,6 @@ type input_event struct {
 	err  error
 }
 
-type extract_event_res int
-
-const (
-	event_not_extracted extract_event_res = iota
-	event_extracted
-	esc_wait
-)
-
 var (
 	// term specific sequences
 	keys  []string
@@ -425,7 +417,7 @@ func parse_escape_sequence(event *Event, buf []byte) (int, bool) {
 		}
 	}
 
-	// if none of the keys match, let's try mouse sequences
+	// if none of the keys match, let's try mouse seqences
 	return parse_mouse_event(event, bufstr)
 }
 
@@ -448,27 +440,17 @@ func extract_raw_event(data []byte, event *Event) bool {
 	return true
 }
 
-func extract_event(inbuf []byte, event *Event, allow_esc_wait bool) extract_event_res {
+func extract_event(inbuf []byte, event *Event) bool {
 	if len(inbuf) == 0 {
 		event.N = 0
-		return event_not_extracted
+		return false
 	}
 
 	if inbuf[0] == '\033' {
 		// possible escape sequence
 		if n, ok := parse_escape_sequence(event, inbuf); n != 0 {
 			event.N = n
-			if ok {
-				return event_extracted
-			} else {
-				return event_not_extracted
-			}
-		}
-
-		// possible partially read escape sequence; trigger a wait if appropriate
-		if enable_wait_for_escape_sequence() && allow_esc_wait {
-			event.N = 0
-			return esc_wait
+			return ok
 		}
 
 		// it's not escape sequence, then it's Alt or Esc, check input_mode
@@ -479,17 +461,17 @@ func extract_event(inbuf []byte, event *Event, allow_esc_wait bool) extract_even
 			event.Key = KeyEsc
 			event.Mod = 0
 			event.N = 1
-			return event_extracted
+			return true
 		case input_mode&InputAlt != 0:
 			// if we're in alt mode, set Alt modifier to event and redo parsing
 			event.Mod = ModAlt
-			status := extract_event(inbuf[1:], event, false)
-			if status == event_extracted {
+			ok := extract_event(inbuf[1:], event)
+			if ok {
 				event.N++
 			} else {
 				event.N = 0
 			}
-			return status
+			return ok
 		default:
 			panic("unreachable")
 		}
@@ -504,7 +486,7 @@ func extract_event(inbuf []byte, event *Event, allow_esc_wait bool) extract_even
 		event.Ch = 0
 		event.Key = Key(inbuf[0])
 		event.N = 1
-		return event_extracted
+		return true
 	}
 
 	// the only possible option is utf8 rune
@@ -512,10 +494,10 @@ func extract_event(inbuf []byte, event *Event, allow_esc_wait bool) extract_even
 		event.Ch = r
 		event.Key = 0
 		event.N = n
-		return event_extracted
+		return true
 	}
 
-	return event_not_extracted
+	return false
 }
 
 func fcntl(fd int, cmd int, arg int) (val int, err error) {

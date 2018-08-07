@@ -1,10 +1,10 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Package geth contains the simplified mobile APIs to go-ethereum.
+// Package yocoin contains the simplified mobile APIs to go-yocoin.
 //
-// The scope of this package is *not* to allow writing a custom YOC client
-// with pieces plucked from go-ethereum, rather to allow writing native dapps on
+// The scope of this package is *not* to allow writing a custom YoCoin client
+// with pieces plucked from yocoin, rather to allow writing native dapps on
 // mobile platforms. Keep this in mind when using or extending this package!
 //
 // API limitations
@@ -20,13 +20,13 @@
 // writing custom library generators, but those are out of scope now.
 //
 // Content wise each file in this package corresponds to an entire Go package
-// from the go-ethereum repository. Please adhere to this scoping to prevent this
+// from the yocoin repository. Please adhere to this scoping to prevent this
 // package getting unmaintainable.
 //
 // Wrapping guidelines:
 //
 // Every type that is to be exposed should be wrapped into its own plain struct,
-// which internally contains a single field: the original go-ethereum version.
+// which internally contains a single field: the original yocoin version.
 // This is needed because gomobile cannot expose named types for now.
 //
 // Whenever a method argument or a return type is a custom struct, the pointer
@@ -45,4 +45,4 @@
 // Note, a panic *cannot* cross over language boundaries, instead will result in
 // an undebuggable SEGFAULT in the process. For error handling only ever use error
 // returns, which may be the only or the second return.
-package geth
+package yocoin

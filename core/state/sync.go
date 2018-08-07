@@ -12,8 +12,8 @@ import (
 )
 
 // NewStateSync create a new state trie download scheduler.
-func NewStateSync(root common.Hash, database trie.DatabaseReader) *trie.TrieSync {
-	var syncer *trie.TrieSync
+func NewStateSync(root common.Hash, database trie.DatabaseReader) *trie.Sync {
+	var syncer *trie.Sync
 	callback := func(leaf []byte, parent common.Hash) error {
 		var obj Account
 		if err := rlp.Decode(bytes.NewReader(leaf), &obj); err != nil {
@@ -23,6 +23,6 @@ func NewStateSync(root common.Hash, database trie.DatabaseReader) *trie.TrieSync
 		syncer.AddRawEntry(common.BytesToHash(obj.CodeHash), 64, parent)
 		return nil
 	}
-	syncer = trie.NewTrieSync(root, database, callback)
+	syncer = trie.NewSync(root, database, callback)
 	return syncer
 }

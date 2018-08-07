@@ -35,7 +35,7 @@ func (s *StateSuite) TestDump(c *checker.C) {
 	// write some of them to the trie
 	s.state.updateStateObject(obj1)
 	s.state.updateStateObject(obj2)
-	s.state.CommitTo(s.db, false)
+	s.state.Commit(false)
 
 	// check that dump contains the state objects that are in trie
 	got := string(s.state.Dump())
@@ -74,7 +74,7 @@ func (s *StateSuite) TestDump(c *checker.C) {
 }
 
 func (s *StateSuite) SetUpTest(c *checker.C) {
-	s.db, _ = yocdb.NewMemDatabase()
+	s.db = yocdb.NewMemDatabase()
 	s.state, _ = New(common.Hash{}, NewDatabase(s.db))
 }
 
@@ -84,9 +84,9 @@ func (s *StateSuite) TestNull(c *checker.C) {
 	//value := common.FromHex("0x823140710bf13990e4500136726d8b55")
 	var value common.Hash
 	s.state.SetState(address, common.Hash{}, value)
-	s.state.CommitTo(s.db, false)
+	s.state.Commit(false)
 	value = s.state.GetState(address, common.Hash{})
-	if !common.EmptyHash(value) {
+	if value != (common.Hash{}) {
 		c.Errorf("expected empty hash. got %x", value)
 	}
 }
@@ -120,8 +120,7 @@ func (s *StateSuite) TestSnapshotEmpty(c *checker.C) {
 // use testing instead of checker because checker does not support
 // printing/logging in tests (-check.vv does not work)
 func TestSnapshot2(t *testing.T) {
-	db, _ := yocdb.NewMemDatabase()
-	state, _ := New(common.Hash{}, NewDatabase(db))
+	state, _ := New(common.Hash{}, NewDatabase(yocdb.NewMemDatabase()))
 
 	stateobjaddr0 := toAddr([]byte("so0"))
 	stateobjaddr1 := toAddr([]byte("so1"))
@@ -142,7 +141,7 @@ func TestSnapshot2(t *testing.T) {
 	so0.deleted = false
 	state.setStateObject(so0)
 
-	root, _ := state.CommitTo(db, false)
+	root, _ := state.Commit(false)
 	state.Reset(root)
 
 	// and one with deleted == true

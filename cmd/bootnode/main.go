@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2015-2018
 // License placeholder #1
 
-// bootnode runs a bootstrap node for the YOC Discovery Protocol.
+// bootnode runs a bootstrap node for the YoCoin Discovery Protocol.
 package main
 
 import (
@@ -109,7 +109,12 @@ func main() {
 			utils.Fatalf("%v", err)
 		}
 	} else {
-		if _, err := discover.ListenUDP(nodeKey, conn, realaddr, nil, "", restrictList); err != nil {
+		cfg := discover.Config{
+			PrivateKey:   nodeKey,
+			AnnounceAddr: realaddr,
+			NetRestrict:  restrictList,
+		}
+		if _, err := discover.ListenUDP(conn, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
 	}

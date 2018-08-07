@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2014-2018
 // License placeholder #1
 
-// Package miner implements YOC block creation and mining.
+// Package miner implements YoCoin block creation and mining.
 package miner
 
 import (
@@ -14,11 +14,11 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // Backend wraps all methods required for mining.
@@ -31,28 +31,25 @@ type Backend interface {
 
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
-	mux *event.TypeMux
-
-	worker *worker
-
+	mux      *event.TypeMux
+	worker   *worker
 	coinbase common.Address
-	mining   int32
-	eth      Backend
+	yoc      Backend
 	engine   consensus.Engine
 
 	canStart    int32 // can start indicates whether we can start the mining operation
 	shouldStart int32 // should start indicates whether we should start after sync
 }
 
-func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
+func New(yoc Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
 	miner := &Miner{
-		eth:      eth,
+		yoc:      yoc,
 		mux:      mux,
 		engine:   engine,
-		worker:   newWorker(config, engine, common.Address{}, eth, mux),
+		worker:   newWorker(config, engine, yoc, mux),
 		canStart: 1,
 	}
-	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
+	miner.Register(NewCpuAgent(yoc.BlockChain(), engine))
 	go miner.update()
 
 	return miner
@@ -92,30 +89,22 @@ out:
 
 func (self *Miner) Start(coinbase common.Address) {
 	atomic.StoreInt32(&self.shouldStart, 1)
-	self.worker.setEtherbase(coinbase)
-	self.coinbase = coinbase
+	self.SetYOCbase(coinbase)
 
 	if atomic.LoadInt32(&self.canStart) == 0 {
 		log.Info("Network syncing, will start miner afterwards")
 		return
 	}
-	atomic.StoreInt32(&self.mining, 1)
-
-	log.Info("Starting mining operation")
 	self.worker.start()
 	self.worker.commitNewWork()
 }
 
 func (self *Miner) Stop() {
 	self.worker.stop()
-	atomic.StoreInt32(&self.mining, 0)
 	atomic.StoreInt32(&self.shouldStart, 0)
 }
 
 func (self *Miner) Register(agent Agent) {
-	if self.Mining() {
-		agent.Start()
-	}
 	self.worker.register(agent)
 }
 
@@ -124,22 +113,14 @@ func (self *Miner) Unregister(agent Agent) {
 }
 
 func (self *Miner) Mining() bool {
-	return atomic.LoadInt32(&self.mining) > 0
+	return self.worker.isRunning()
 }
 
-func (self *Miner) HashRate() (tot int64) {
+func (self *Miner) HashRate() uint64 {
 	if pow, ok := self.engine.(consensus.PoW); ok {
-		tot += int64(pow.Hashrate())
+		return uint64(pow.Hashrate())
 	}
-	// do we care this might race? is it worth we're rewriting some
-	// aspects of the worker/locking up agents so we can get an accurate
-	// hashrate?
-	for agent := range self.worker.agents {
-		if _, ok := agent.(*CpuAgent); !ok {
-			tot += agent.GetHashRate()
-		}
-	}
-	return
+	return 0
 }
 
 func (self *Miner) SetExtra(extra []byte) error {
@@ -164,7 +145,7 @@ func (self *Miner) PendingBlock() *types.Block {
 	return self.worker.pendingBlock()
 }
 
-func (self *Miner) SetEtherbase(addr common.Address) {
+func (self *Miner) SetYOCbase(addr common.Address) {
 	self.coinbase = addr
-	self.worker.setEtherbase(addr)
+	self.worker.setYOCbase(addr)
 }

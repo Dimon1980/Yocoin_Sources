@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Yocoin15/Yocoin_Sources/log"
+	"github.com/Yocoin15/Yocoin_Sources/swarm/log"
 )
 
 /*
 http roundtripper to register for bzz url scheme
-see https://github.com/Yocoin15/Yocoin_Sources/issues/2040
+see https://github.com/yocoin/go-yocoin/issues/2040
 Usage:
 
 import (
- "github.com/Yocoin15/Yocoin_Sources/common/httpclient"
- "github.com/Yocoin15/Yocoin_Sources/swarm/api/http"
+ "github.com/yocoin/go-yocoin/common/httpclient"
+ "github.com/yocoin/go-yocoin/swarm/api/http"
 )
 client := httpclient.New()
 // for (private) swarm proxy running locally

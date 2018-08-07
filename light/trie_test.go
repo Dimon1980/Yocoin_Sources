@@ -9,25 +9,25 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/trie"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestNodeIterator(t *testing.T) {
 	var (
-		fulldb, _  = yocdb.NewMemDatabase()
-		lightdb, _ = yocdb.NewMemDatabase()
-		gspec      = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
-		genesis    = gspec.MustCommit(fulldb)
+		fulldb  = yocdb.NewMemDatabase()
+		lightdb = yocdb.NewMemDatabase()
+		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
+		genesis = gspec.MustCommit(fulldb)
 	)
 	gspec.MustCommit(lightdb)
-	blockchain, _ := core.NewBlockChain(fulldb, params.TestChainConfig, yochash.NewFullFaker(), vm.Config{})
+	blockchain, _ := core.NewBlockChain(fulldb, nil, params.TestChainConfig, yochash.NewFullFaker(), vm.Config{})
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, yochash.NewFaker(), fulldb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)

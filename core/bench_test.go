@@ -13,11 +13,12 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/math"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 func BenchmarkInsertChain_empty_memdb(b *testing.B) {
@@ -91,7 +92,7 @@ func init() {
 	}
 }
 
-// genTxRing returns a block generator that sends ether in a ring
+// genTxRing returns a block generator that sends yoc in a ring
 // among n accounts. This is creates n entries in the state database
 // and fills the blocks with many small transactions.
 func genTxRing(naccounts int) func(int, *BlockGen) {
@@ -135,9 +136,9 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 	// Create the database in memory or in a temporary directory.
 	var db yocdb.Database
 	if !disk {
-		db, _ = yocdb.NewMemDatabase()
+		db = yocdb.NewMemDatabase()
 	} else {
-		dir, err := ioutil.TempDir("", "eth-core-bench")
+		dir, err := ioutil.TempDir("", "yoc-core-bench")
 		if err != nil {
 			b.Fatalf("cannot create temporary directory: %v", err)
 		}
@@ -160,7 +161,7 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 
 	// Time the insertion of the new chain.
 	// State and blocks are stored in the same DB.
-	chainman, _ := NewBlockChain(db, gspec.Config, yochash.NewFaker(), vm.Config{})
+	chainman, _ := NewBlockChain(db, nil, gspec.Config, yochash.NewFaker(), vm.Config{})
 	defer chainman.Stop()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -221,20 +222,22 @@ func makeChainForBench(db yocdb.Database, full bool, count uint64) {
 			ReceiptHash: types.EmptyRootHash,
 		}
 		hash = header.Hash()
-		WriteHeader(db, header)
-		WriteCanonicalHash(db, hash, n)
-		WriteTd(db, hash, n, big.NewInt(int64(n+1)))
+
+		rawdb.WriteHeader(db, header)
+		rawdb.WriteCanonicalHash(db, hash, n)
+		rawdb.WriteTd(db, hash, n, big.NewInt(int64(n+1)))
+
 		if full || n == 0 {
 			block := types.NewBlockWithHeader(header)
-			WriteBody(db, hash, n, block.Body())
-			WriteBlockReceipts(db, hash, n, nil)
+			rawdb.WriteBody(db, hash, n, block.Body())
+			rawdb.WriteReceipts(db, hash, n, nil)
 		}
 	}
 }
 
 func benchWriteChain(b *testing.B, full bool, count uint64) {
 	for i := 0; i < b.N; i++ {
-		dir, err := ioutil.TempDir("", "eth-chain-bench")
+		dir, err := ioutil.TempDir("", "yoc-chain-bench")
 		if err != nil {
 			b.Fatalf("cannot create temporary directory: %v", err)
 		}
@@ -249,7 +252,7 @@ func benchWriteChain(b *testing.B, full bool, count uint64) {
 }
 
 func benchReadChain(b *testing.B, full bool, count uint64) {
-	dir, err := ioutil.TempDir("", "eth-chain-bench")
+	dir, err := ioutil.TempDir("", "yoc-chain-bench")
 	if err != nil {
 		b.Fatalf("cannot create temporary directory: %v", err)
 	}
@@ -270,7 +273,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 		if err != nil {
 			b.Fatalf("error opening database at %v: %v", dir, err)
 		}
-		chain, err := NewBlockChain(db, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
+		chain, err := NewBlockChain(db, nil, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
 		if err != nil {
 			b.Fatalf("error creating chain: %v", err)
 		}
@@ -279,11 +282,10 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 			header := chain.GetHeaderByNumber(n)
 			if full {
 				hash := header.Hash()
-				GetBody(db, hash, n)
-				GetBlockReceipts(db, hash, n)
+				rawdb.ReadBody(db, hash, n)
+				rawdb.ReadReceipts(db, hash, n)
 			}
 		}
-
 		chain.Stop()
 		db.Close()
 	}

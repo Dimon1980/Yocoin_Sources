@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2015-2018
 // License placeholder #1
 
-// Package utils contains internal helper functions for go-ethereum commands.
+// Package utils contains internal helper functions for yocoin commands.
 package utils
 
 import (
@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Yocoin15/Yocoin_Sources/accounts"
 	"github.com/Yocoin15/Yocoin_Sources/accounts/keystore"
@@ -27,14 +28,10 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
 	"github.com/Yocoin15/Yocoin_Sources/dashboard"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
-	"github.com/Yocoin15/Yocoin_Sources/yocstats"
 	"github.com/Yocoin15/Yocoin_Sources/les"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/metrics"
+	"github.com/Yocoin15/Yocoin_Sources/metrics/influxdb"
 	"github.com/Yocoin15/Yocoin_Sources/node"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discover"
@@ -42,7 +39,12 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/p2p/nat"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/netutil"
 	"github.com/Yocoin15/Yocoin_Sources/params"
-	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv5"
+	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv6"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
+	"github.com/Yocoin15/Yocoin_Sources/yocstats"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -51,7 +53,7 @@ var (
 {{if .cmd.Description}}{{.cmd.Description}}
 {{end}}{{if .cmd.Subcommands}}
 SUBCOMMANDS:
-	{{range .cmd.Subcommands}}{{.cmd.Name}}{{with .cmd.ShortName}}, {{.cmd}}{{end}}{{ "\t" }}{{.cmd.Usage}}
+	{{range .cmd.Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
 	{{end}}{{end}}{{if .categorizedFlags}}
 {{range $idx, $categorized := .categorizedFlags}}{{$categorized.Name}} OPTIONS:
 {{range $categorized.Flags}}{{"\t"}}{{.}}
@@ -83,7 +85,7 @@ func NewApp(gitCommit, usage string) *cli.App {
 	app.Author = ""
 	//app.Authors = nil
 	app.Email = ""
-	app.Version = params.Version
+	app.Version = params.VersionWithMeta
 	if len(gitCommit) >= 8 {
 		app.Version += "-" + gitCommit[:8]
 	}
@@ -145,11 +147,11 @@ var (
 	}
 	FastSyncFlag = cli.BoolFlag{
 		Name:  "fast",
-		Usage: "Enable fast syncing through state downloads",
+		Usage: "Enable fast syncing through state downloads (replaced by --syncmode)",
 	}
 	LightModeFlag = cli.BoolFlag{
 		Name:  "light",
-		Usage: "Enable light client mode",
+		Usage: "Enable light client mode (replaced by --syncmode)",
 	}
 	defaultSyncMode = yoc.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
@@ -157,7 +159,11 @@ var (
 		Usage: `Blockchain sync mode ("fast", "full", or "light")`,
 		Value: &defaultSyncMode,
 	}
-
+	GCModeFlag = cli.StringFlag{
+		Name:  "gcmode",
+		Usage: `Blockchain garbage collection mode ("full", "archive")`,
+		Value: "full",
+	}
 	LightServFlag = cli.IntFlag{
 		Name:  "lightserv",
 		Usage: "Maximum percentage of time allowed for serving LES requests (0-90)",
@@ -166,7 +172,7 @@ var (
 	LightPeersFlag = cli.IntFlag{
 		Name:  "lightpeers",
 		Usage: "Maximum number of LES client peers",
-		Value: 20,
+		Value: yoc.DefaultConfig.LightPeers,
 	}
 	LightKDFFlag = cli.BoolFlag{
 		Name:  "lightkdf",
@@ -174,7 +180,7 @@ var (
 	}
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
-		Name:  "dashboard",
+		Name:  metrics.DashboardEnabledFlag,
 		Usage: "Enable the dashboard",
 	}
 	DashboardAddrFlag = cli.StringFlag{
@@ -192,40 +198,35 @@ var (
 		Usage: "Dashboard metrics collection refresh rate",
 		Value: dashboard.DefaultConfig.Refresh,
 	}
-	DashboardAssetsFlag = cli.StringFlag{
-		Name:  "dashboard.assets",
-		Usage: "Developer flag to serve the dashboard from the local file system",
-		Value: dashboard.DefaultConfig.Assets,
-	}
-	// Ethash settings
-	EthashCacheDirFlag = DirectoryFlag{
+	// Yochash settings
+	YochashCacheDirFlag = DirectoryFlag{
 		Name:  "yochash.cachedir",
-		Usage: "Directory to store the ethash verification caches (default = inside the datadir)",
+		Usage: "Directory to store the yochash verification caches (default = inside the datadir)",
 	}
-	EthashCachesInMemoryFlag = cli.IntFlag{
+	YochashCachesInMemoryFlag = cli.IntFlag{
 		Name:  "yochash.cachesinmem",
-		Usage: "Number of recent ethash caches to keep in memory (16MB each)",
-		Value: yoc.DefaultConfig.Ethash.CachesInMem,
+		Usage: "Number of recent yochash caches to keep in memory (16MB each)",
+		Value: yoc.DefaultConfig.Yochash.CachesInMem,
 	}
-	EthashCachesOnDiskFlag = cli.IntFlag{
+	YochashCachesOnDiskFlag = cli.IntFlag{
 		Name:  "yochash.cachesondisk",
-		Usage: "Number of recent ethash caches to keep on disk (16MB each)",
-		Value: yoc.DefaultConfig.Ethash.CachesOnDisk,
+		Usage: "Number of recent yochash caches to keep on disk (16MB each)",
+		Value: yoc.DefaultConfig.Yochash.CachesOnDisk,
 	}
-	EthashDatasetDirFlag = DirectoryFlag{
+	YochashDatasetDirFlag = DirectoryFlag{
 		Name:  "yochash.dagdir",
-		Usage: "Directory to store the ethash mining DAGs (default = inside home folder)",
-		Value: DirectoryString{yoc.DefaultConfig.Ethash.DatasetDir},
+		Usage: "Directory to store the yochash mining DAGs (default = inside home folder)",
+		Value: DirectoryString{yoc.DefaultConfig.Yochash.DatasetDir},
 	}
-	EthashDatasetsInMemoryFlag = cli.IntFlag{
+	YochashDatasetsInMemoryFlag = cli.IntFlag{
 		Name:  "yochash.dagsinmem",
-		Usage: "Number of recent ethash mining DAGs to keep in memory (1+GB each)",
-		Value: yoc.DefaultConfig.Ethash.DatasetsInMem,
+		Usage: "Number of recent yochash mining DAGs to keep in memory (1+GB each)",
+		Value: yoc.DefaultConfig.Yochash.DatasetsInMem,
 	}
-	EthashDatasetsOnDiskFlag = cli.IntFlag{
+	YochashDatasetsOnDiskFlag = cli.IntFlag{
 		Name:  "yochash.dagsondisk",
-		Usage: "Number of recent ethash mining DAGs to keep on disk (1+GB each)",
-		Value: yoc.DefaultConfig.Ethash.DatasetsOnDisk,
+		Usage: "Number of recent yochash mining DAGs to keep on disk (1+GB each)",
+		Value: yoc.DefaultConfig.Yochash.DatasetsOnDisk,
 	}
 	// Transaction pool settings
 	TxPoolNoLocalsFlag = cli.BoolFlag{
@@ -280,8 +281,18 @@ var (
 	// Performance tuning settings
 	CacheFlag = cli.IntFlag{
 		Name:  "cache",
-		Usage: "Megabytes of memory allocated to internal caching (min 16MB / database forced)",
-		Value: 128,
+		Usage: "Megabytes of memory allocated to internal caching",
+		Value: 1024,
+	}
+	CacheDatabaseFlag = cli.IntFlag{
+		Name:  "cache.database",
+		Usage: "Percentage of cache memory allowance to use for database io",
+		Value: 75,
+	}
+	CacheGCFlag = cli.IntFlag{
+		Name:  "cache.gc",
+		Usage: "Percentage of cache memory allowance to use for trie pruning",
+		Value: 25,
 	}
 	TrieCacheGenFlag = cli.IntFlag{
 		Name:  "trie-cache-gens",
@@ -303,8 +314,8 @@ var (
 		Usage: "Target gas limit sets the artificial target gas floor for the blocks to mine",
 		Value: params.GenesisGasLimit,
 	}
-	EtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
+	YOCbaseFlag = cli.StringFlag{
+		Name:  "yocbase",
 		Usage: "Public address for block mining rewards (default = first account created)",
 		Value: "0",
 	}
@@ -334,13 +345,9 @@ var (
 		Usage: "Record information useful for VM and contract debugging",
 	}
 	// Logging and debug settings
-	EthStatsURLFlag = cli.StringFlag{
+	YocStatsURLFlag = cli.StringFlag{
 		Name:  "yocstats",
 		Usage: "Reporting URL of a yocstats service (nodename:secret@host:port)",
-	}
-	MetricsEnabledFlag = cli.BoolFlag{
-		Name:  metrics.MetricsEnabledFlag,
-		Usage: "Enable metrics collection and reporting",
 	}
 	FakePoWFlag = cli.BoolFlag{
 		Name:  "fakepow",
@@ -369,6 +376,11 @@ var (
 		Name:  "rpccorsdomain",
 		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced)",
 		Value: "",
+	}
+	RPCVirtualHostsFlag = cli.StringFlag{
+		Name:  "rpcvhosts",
+		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard.",
+		Value: strings.Join(node.DefaultConfig.HTTPVirtualHosts, ","),
 	}
 	RPCApiFlag = cli.StringFlag{
 		Name:  "rpcapi",
@@ -505,6 +517,45 @@ var (
 		Usage: "Minimum POW accepted",
 		Value: whisper.DefaultMinimumPoW,
 	}
+
+	// Metrics flags
+	MetricsEnabledFlag = cli.BoolFlag{
+		Name:  metrics.MetricsEnabledFlag,
+		Usage: "Enable metrics collection and reporting",
+	}
+	MetricsEnableInfluxDBFlag = cli.BoolFlag{
+		Name:  "metrics.influxdb",
+		Usage: "Enable metrics export/push to an external InfluxDB database",
+	}
+	MetricsInfluxDBEndpointFlag = cli.StringFlag{
+		Name:  "metrics.influxdb.endpoint",
+		Usage: "InfluxDB API endpoint to report metrics to",
+		Value: "http://localhost:8086",
+	}
+	MetricsInfluxDBDatabaseFlag = cli.StringFlag{
+		Name:  "metrics.influxdb.database",
+		Usage: "InfluxDB database name to push reported metrics to",
+		Value: "yocoin",
+	}
+	MetricsInfluxDBUsernameFlag = cli.StringFlag{
+		Name:  "metrics.influxdb.username",
+		Usage: "Username to authorize access to the database",
+		Value: "test",
+	}
+	MetricsInfluxDBPasswordFlag = cli.StringFlag{
+		Name:  "metrics.influxdb.password",
+		Usage: "Password to authorize access to the database",
+		Value: "test",
+	}
+	// The `host` tag is part of every measurement sent to InfluxDB. Queries on tags are faster in InfluxDB.
+	// It is used so that we can group all nodes and average a measurement across all of them, but also so
+	// that we can select a specific node and inspect its measurements.
+	// https://docs.influxdata.com/influxdb/v1.4/concepts/key_concepts/#tag-key
+	MetricsInfluxDBHostTagFlag = cli.StringFlag{
+		Name:  "metrics.influxdb.host.tag",
+		Usage: "InfluxDB `host` tag attached to all measurements",
+		Value: "localhost",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -568,6 +619,10 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
+	case ctx.GlobalBool(TestnetFlag.Name):
+		urls = params.TestnetBootnodes
+	case ctx.GlobalBool(RinkebyFlag.Name):
+		urls = params.RinkebyBootnodes
 	case cfg.BootstrapNodes != nil:
 		return // already set, don't apply defaults.
 	}
@@ -576,8 +631,7 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 	for _, url := range urls {
 		node, err := discover.ParseNode(url)
 		if err != nil {
-			log.Error("Bootstrap URL invalid", "enode", url, "err", err)
-			continue
+			log.Crit("Bootstrap URL invalid", "enode", url, "err", err)
 		}
 		cfg.BootstrapNodes = append(cfg.BootstrapNodes, node)
 	}
@@ -594,6 +648,8 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
+	case ctx.GlobalBool(RinkebyFlag.Name):
+		urls = params.RinkebyBootnodes
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
 	}
@@ -657,6 +713,9 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(RPCApiFlag.Name) {
 		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(RPCApiFlag.Name))
 	}
+	if ctx.GlobalIsSet(RPCVirtualHostsFlag.Name) {
+		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(RPCVirtualHostsFlag.Name))
+	}
 }
 
 // setWS creates the WebSocket RPC listener interface string from the set
@@ -693,14 +752,16 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 }
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
-// for Geth and returns half of the allowance to assign to the database.
+// for Yocoin and returns half of the allowance to assign to the database.
 func makeDatabaseHandles() int {
-	if err := fdlimit.Raise(2048); err != nil {
-		Fatalf("Failed to raise file descriptor allowance: %v", err)
-	}
 	limit, err := fdlimit.Current()
 	if err != nil {
 		Fatalf("Failed to retrieve file descriptor allowance: %v", err)
+	}
+	if limit < 2048 {
+		if err := fdlimit.Raise(2048); err != nil {
+			Fatalf("Failed to raise file descriptor allowance: %v", err)
+		}
 	}
 	if limit > 2048 { // cap database file descriptors even if more is available
 		limit = 2048
@@ -723,7 +784,7 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	log.Warn("-------------------------------------------------------------------")
 	log.Warn("Referring to accounts by order in the keystore folder is dangerous!")
 	log.Warn("This functionality is deprecated and will be removed in the future!")
-	log.Warn("Please use explicit addresses! (can search via `geth account list`)")
+	log.Warn("Please use explicit addresses! (can search via `yocoin account list`)")
 	log.Warn("-------------------------------------------------------------------")
 
 	accs := ks.Accounts()
@@ -733,15 +794,15 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setYOCbase retrieves the yocbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *yoc.Config) {
-	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
-		account, err := MakeAddress(ks, ctx.GlobalString(EtherbaseFlag.Name))
+func setYOCbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *yoc.Config) {
+	if ctx.GlobalIsSet(YOCbaseFlag.Name) {
+		account, err := MakeAddress(ks, ctx.GlobalString(YOCbaseFlag.Name))
 		if err != nil {
-			Fatalf("Option %q: %v", EtherbaseFlag.Name, err)
+			Fatalf("Option %q: %v", YOCbaseFlag.Name, err)
 		}
-		cfg.Etherbase = account.Address
+		cfg.YOCbase = account.Address
 	}
 }
 
@@ -770,17 +831,43 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	lightClient := ctx.GlobalBool(LightModeFlag.Name) || ctx.GlobalString(SyncModeFlag.Name) == "light"
+	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
+	lightPeers := ctx.GlobalInt(LightPeersFlag.Name)
+
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
+		if lightServer && !ctx.GlobalIsSet(LightPeersFlag.Name) {
+			cfg.MaxPeers += lightPeers
+		}
+	} else {
+		if lightServer {
+			cfg.MaxPeers += lightPeers
+		}
+		if lightClient && ctx.GlobalIsSet(LightPeersFlag.Name) && cfg.MaxPeers < lightPeers {
+			cfg.MaxPeers = lightPeers
+		}
 	}
+	if !(lightClient || lightServer) {
+		lightPeers = 0
+	}
+	yocPeers := cfg.MaxPeers - lightPeers
+	if lightClient {
+		yocPeers = 0
+	}
+	log.Info("Maximum peer count", "ETH", yocPeers, "LES", lightPeers, "total", cfg.MaxPeers)
+
 	if ctx.GlobalIsSet(MaxPendingPeersFlag.Name) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
-	if !ctx.GlobalIsSet(EnableDiscoverFlag.Name) || ctx.GlobalBool(LightModeFlag.Name) {
+	if !ctx.GlobalIsSet(EnableDiscoverFlag.Name) || lightClient {
 		cfg.NoDiscovery = true
 	}
 
-	forceV5Discovery := (ctx.GlobalBool(LightModeFlag.Name) || ctx.GlobalInt(LightServFlag.Name) > 0) && ctx.GlobalBool(EnableDiscoverFlag.Name)
+	// if we're running a light client or server, force enable the v5 peer discovery
+	// unless it is explicitly disabled with --nodiscover note that explicitly specifying
+	// --v5disc overrides --nodiscover, in which case the later only disables v4 discovery
+	forceV5Discovery := (lightClient || lightServer) && ctx.GlobalBool(EnableDiscoverFlag.Name)
 	if ctx.GlobalIsSet(DiscoveryV5Flag.Name) {
 		cfg.DiscoveryV5 = ctx.GlobalBool(DiscoveryV5Flag.Name)
 	} else if forceV5Discovery {
@@ -876,28 +963,28 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 }
 
-func setEthash(ctx *cli.Context, cfg *yoc.Config) {
-	if ctx.GlobalIsSet(EthashCacheDirFlag.Name) {
-		cfg.Ethash.CacheDir = ctx.GlobalString(EthashCacheDirFlag.Name)
+func setYochash(ctx *cli.Context, cfg *yoc.Config) {
+	if ctx.GlobalIsSet(YochashCacheDirFlag.Name) {
+		cfg.Yochash.CacheDir = ctx.GlobalString(YochashCacheDirFlag.Name)
 	}
-	if ctx.GlobalIsSet(EthashDatasetDirFlag.Name) {
-		cfg.Ethash.DatasetDir = ctx.GlobalString(EthashDatasetDirFlag.Name)
+	if ctx.GlobalIsSet(YochashDatasetDirFlag.Name) {
+		cfg.Yochash.DatasetDir = ctx.GlobalString(YochashDatasetDirFlag.Name)
 	}
-	if ctx.GlobalIsSet(EthashCachesInMemoryFlag.Name) {
-		cfg.Ethash.CachesInMem = ctx.GlobalInt(EthashCachesInMemoryFlag.Name)
+	if ctx.GlobalIsSet(YochashCachesInMemoryFlag.Name) {
+		cfg.Yochash.CachesInMem = ctx.GlobalInt(YochashCachesInMemoryFlag.Name)
 	}
-	if ctx.GlobalIsSet(EthashCachesOnDiskFlag.Name) {
-		cfg.Ethash.CachesOnDisk = ctx.GlobalInt(EthashCachesOnDiskFlag.Name)
+	if ctx.GlobalIsSet(YochashCachesOnDiskFlag.Name) {
+		cfg.Yochash.CachesOnDisk = ctx.GlobalInt(YochashCachesOnDiskFlag.Name)
 	}
-	if ctx.GlobalIsSet(EthashDatasetsInMemoryFlag.Name) {
-		cfg.Ethash.DatasetsInMem = ctx.GlobalInt(EthashDatasetsInMemoryFlag.Name)
+	if ctx.GlobalIsSet(YochashDatasetsInMemoryFlag.Name) {
+		cfg.Yochash.DatasetsInMem = ctx.GlobalInt(YochashDatasetsInMemoryFlag.Name)
 	}
-	if ctx.GlobalIsSet(EthashDatasetsOnDiskFlag.Name) {
-		cfg.Ethash.DatasetsOnDisk = ctx.GlobalInt(EthashDatasetsOnDiskFlag.Name)
+	if ctx.GlobalIsSet(YochashDatasetsOnDiskFlag.Name) {
+		cfg.Yochash.DatasetsOnDisk = ctx.GlobalInt(YochashDatasetsOnDiskFlag.Name)
 	}
 }
 
-// checkExclusive verifies that only a single isntance of the provided flags was
+// checkExclusive verifies that only a single instance of the provided flags was
 // set by the user. Each flag might optionally be followed by a string type to
 // specialize it further.
 func checkExclusive(ctx *cli.Context, args ...interface{}) {
@@ -945,8 +1032,8 @@ func SetShhConfig(ctx *cli.Context, stack *node.Node, cfg *whisper.Config) {
 	}
 }
 
-// SetYOCConfig applies eth-related command line flags to the config.
-func SetYOCConfig(ctx *cli.Context, stack *node.Node, cfg *yoc.Config) {
+// SetYocConfig applies yoc-related command line flags to the config.
+func SetYocConfig(ctx *cli.Context, stack *node.Node, cfg *yoc.Config) {
 	// Avoid conflicting network flags
 	checkExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag)
 	checkExclusive(ctx, FastSyncFlag, LightModeFlag, SyncModeFlag)
@@ -954,10 +1041,10 @@ func SetYOCConfig(ctx *cli.Context, stack *node.Node, cfg *yoc.Config) {
 	checkExclusive(ctx, LightServFlag, SyncModeFlag, "light")
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-	setEtherbase(ctx, ks, cfg)
+	setYOCbase(ctx, ks, cfg)
 	setGPO(ctx, &cfg.GPO)
 	setTxPool(ctx, &cfg.TxPool)
-	setEthash(ctx, cfg)
+	setYochash(ctx, cfg)
 
 	switch {
 	case ctx.GlobalIsSet(SyncModeFlag.Name):
@@ -977,11 +1064,19 @@ func SetYOCConfig(ctx *cli.Context, stack *node.Node, cfg *yoc.Config) {
 		cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
 	}
 
-	if ctx.GlobalIsSet(CacheFlag.Name) {
-		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name)
+	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheDatabaseFlag.Name) {
+		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
 	}
 	cfg.DatabaseHandles = makeDatabaseHandles()
 
+	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
+		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
+	}
+	cfg.NoPruning = ctx.GlobalString(GCModeFlag.Name) == "archive"
+
+	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheGCFlag.Name) {
+		cfg.TrieCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
+	}
 	if ctx.GlobalIsSet(MinerThreadsFlag.Name) {
 		cfg.MinerThreads = ctx.GlobalInt(MinerThreadsFlag.Name)
 	}
@@ -1012,6 +1107,9 @@ func SetYOCConfig(ctx *cli.Context, stack *node.Node, cfg *yoc.Config) {
 		}
 		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
+		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = 1337
+		}
 		// Create new developer account or reuse existing one
 		var (
 			developer accounts.Account
@@ -1046,11 +1144,10 @@ func SetDashboardConfig(ctx *cli.Context, cfg *dashboard.Config) {
 	cfg.Host = ctx.GlobalString(DashboardAddrFlag.Name)
 	cfg.Port = ctx.GlobalInt(DashboardPortFlag.Name)
 	cfg.Refresh = ctx.GlobalDuration(DashboardRefreshFlag.Name)
-	cfg.Assets = ctx.GlobalString(DashboardAssetsFlag.Name)
 }
 
-// RegisterEthService adds an YOC client to the stack.
-func RegisterEthService(stack *node.Node, cfg *yoc.Config) {
+// RegisterYocService adds an YoCoin client to the stack.
+func RegisterYocService(stack *node.Node, cfg *yoc.Config) {
 	var err error
 	if cfg.SyncMode == downloader.LightSync {
 		err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
@@ -1074,7 +1171,7 @@ func RegisterEthService(stack *node.Node, cfg *yoc.Config) {
 // RegisterDashboardService adds a dashboard to the stack.
 func RegisterDashboardService(stack *node.Node, cfg *dashboard.Config, commit string) {
 	stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		return dashboard.New(cfg, commit)
+		return dashboard.New(cfg, commit, ctx.ResolvePath("logs")), nil
 	})
 }
 
@@ -1087,11 +1184,11 @@ func RegisterShhService(stack *node.Node, cfg *whisper.Config) {
 	}
 }
 
-// RegisterEthStatsService configures the YOC Stats daemon and adds it to
-// th egiven node.
-func RegisterEthStatsService(stack *node.Node, url string) {
+// RegisterYocStatsService configures the YoCoin Stats daemon and adds it to
+// the given node.
+func RegisterYocStatsService(stack *node.Node, url string) {
 	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		// Retrieve both eth and les services
+		// Retrieve both yoc and les services
 		var yocServ *yoc.YoCoin
 		ctx.Service(&yocServ)
 
@@ -1110,10 +1207,31 @@ func SetupNetwork(ctx *cli.Context) {
 	params.TargetGasLimit = ctx.GlobalUint64(TargetGasLimitFlag.Name)
 }
 
+func SetupMetrics(ctx *cli.Context) {
+	if metrics.Enabled {
+		log.Info("Enabling metrics collection")
+		var (
+			enableExport = ctx.GlobalBool(MetricsEnableInfluxDBFlag.Name)
+			endpoint     = ctx.GlobalString(MetricsInfluxDBEndpointFlag.Name)
+			database     = ctx.GlobalString(MetricsInfluxDBDatabaseFlag.Name)
+			username     = ctx.GlobalString(MetricsInfluxDBUsernameFlag.Name)
+			password     = ctx.GlobalString(MetricsInfluxDBPasswordFlag.Name)
+			hosttag      = ctx.GlobalString(MetricsInfluxDBHostTagFlag.Name)
+		)
+
+		if enableExport {
+			log.Info("Enabling metrics export to InfluxDB")
+			go influxdb.InfluxDBWithTags(metrics.DefaultRegistry, 10*time.Second, endpoint, database, username, password, "yocoin.", map[string]string{
+				"host": hosttag,
+			})
+		}
+	}
+}
+
 // MakeChainDatabase open an LevelDB using the flags passed to the client and will hard crash if it fails.
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) yocdb.Database {
 	var (
-		cache   = ctx.GlobalInt(CacheFlag.Name)
+		cache   = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
 		handles = makeDatabaseHandles()
 	)
 	name := "chaindata"
@@ -1156,17 +1274,28 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		engine = yochash.NewFaker()
 		if !ctx.GlobalBool(FakePoWFlag.Name) {
 			engine = yochash.New(yochash.Config{
-				CacheDir:       stack.ResolvePath(yoc.DefaultConfig.Ethash.CacheDir),
-				CachesInMem:    yoc.DefaultConfig.Ethash.CachesInMem,
-				CachesOnDisk:   yoc.DefaultConfig.Ethash.CachesOnDisk,
-				DatasetDir:     stack.ResolvePath(yoc.DefaultConfig.Ethash.DatasetDir),
-				DatasetsInMem:  yoc.DefaultConfig.Ethash.DatasetsInMem,
-				DatasetsOnDisk: yoc.DefaultConfig.Ethash.DatasetsOnDisk,
+				CacheDir:       stack.ResolvePath(yoc.DefaultConfig.Yochash.CacheDir),
+				CachesInMem:    yoc.DefaultConfig.Yochash.CachesInMem,
+				CachesOnDisk:   yoc.DefaultConfig.Yochash.CachesOnDisk,
+				DatasetDir:     stack.ResolvePath(yoc.DefaultConfig.Yochash.DatasetDir),
+				DatasetsInMem:  yoc.DefaultConfig.Yochash.DatasetsInMem,
+				DatasetsOnDisk: yoc.DefaultConfig.Yochash.DatasetsOnDisk,
 			})
 		}
 	}
+	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
+		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
+	}
+	cache := &core.CacheConfig{
+		Disabled:      ctx.GlobalString(GCModeFlag.Name) == "archive",
+		TrieNodeLimit: yoc.DefaultConfig.TrieCache,
+		TrieTimeLimit: yoc.DefaultConfig.TrieTimeout,
+	}
+	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheGCFlag.Name) {
+		cache.TrieNodeLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
+	}
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.GlobalBool(VMEnableDebugFlag.Name)}
-	chain, err = core.NewBlockChain(chainDb, config, engine, vmcfg)
+	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}
@@ -1194,11 +1323,11 @@ func MakeConsolePreloads(ctx *cli.Context) []string {
 // This is a temporary function used for migrating old command/flags to the
 // new format.
 //
-// e.g. geth account new --keystore /tmp/mykeystore --lightkdf
+// e.g. yocoin account new --keystore /tmp/mykeystore --lightkdf
 //
 // is equivalent after calling this method with:
 //
-// geth --keystore /tmp/mykeystore --lightkdf account new
+// yocoin --keystore /tmp/mykeystore --lightkdf account new
 //
 // This allows the use of the existing configuration functionality.
 // When all flags are migrated this function can be removed and the existing

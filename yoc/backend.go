@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2014-2018
 // License placeholder #1
 
-// Package yoc implements the YOC protocol.
+// Package yoc implements the YoCoin protocol.
 package yoc
 
 import (
@@ -20,12 +20,9 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/bloombits"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/filters"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/internal/yocapi"
 	"github.com/Yocoin15/Yocoin_Sources/log"
@@ -35,6 +32,10 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/filters"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type LesServer interface {
@@ -44,14 +45,13 @@ type LesServer interface {
 	SetBloomBitsIndexer(bbIndexer *core.ChainIndexer)
 }
 
-// YoCoin implements the YOC full node service.
+// YoCoin implements the YoCoin full node service.
 type YoCoin struct {
 	config      *Config
 	chainConfig *params.ChainConfig
 
 	// Channel for shutting down the service
-	shutdownChan  chan bool    // Channel for shutting down the ethereum
-	stopDbUpgrade func() error // stop chain db sequential key upgrade
+	shutdownChan chan bool // Channel for shutting down the YoCoin
 
 	// Handlers
 	txPool          *core.TxPool
@@ -69,16 +69,16 @@ type YoCoin struct {
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
 
-	ApiBackend *YOCApiBackend
+	APIBackend *YocAPIBackend
 
-	miner     *miner.Miner
-	gasPrice  *big.Int
-	etherbase common.Address
+	miner    *miner.Miner
+	gasPrice *big.Int
+	yocbase  common.Address
 
-	networkId     uint64
+	networkID     uint64
 	netRPCService *yocapi.PublicNetAPI
 
-	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and yocbase)
 }
 
 func (s *YoCoin) AddLesServer(ls LesServer) {
@@ -86,11 +86,11 @@ func (s *YoCoin) AddLesServer(ls LesServer) {
 	ls.SetBloomBitsIndexer(s.bloomIndexer)
 }
 
-// New creates a new YOC object (including the
-// initialisation of the common YOC object)
+// New creates a new YoCoin object (including the
+// initialisation of the common YoCoin object)
 func New(ctx *node.ServiceContext, config *Config) (*YoCoin, error) {
 	if config.SyncMode == downloader.LightSync {
-		return nil, errors.New("can't run eth.YoCoin in light sync mode, use les.LightYoCoin")
+		return nil, errors.New("can't run yoc.YoCoin in light sync mode, use les.LightYoCoin")
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
@@ -99,71 +99,72 @@ func New(ctx *node.ServiceContext, config *Config) (*YoCoin, error) {
 	if err != nil {
 		return nil, err
 	}
-	stopDbUpgrade := upgradeDeduplicateData(chainDb)
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
-	eth := &YoCoin{
+	yoc := &YoCoin{
 		config:         config,
 		chainDb:        chainDb,
 		chainConfig:    chainConfig,
 		eventMux:       ctx.EventMux,
 		accountManager: ctx.AccountManager,
-		engine:         CreateConsensusEngine(ctx, &config.Ethash, chainConfig, chainDb),
+		engine:         CreateConsensusEngine(ctx, &config.Yochash, chainConfig, chainDb),
 		shutdownChan:   make(chan bool),
-		stopDbUpgrade:  stopDbUpgrade,
-		networkId:      config.NetworkId,
+		networkID:      config.NetworkId,
 		gasPrice:       config.GasPrice,
-		etherbase:      config.Etherbase,
+		yocbase:        config.YOCbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks),
 	}
 
-	log.Info("Initialising YOC protocol", "versions", ProtocolVersions, "network", config.NetworkId)
+	log.Info("Initialising YoCoin protocol", "versions", ProtocolVersions, "network", config.NetworkId)
 
 	if !config.SkipBcVersionCheck {
-		bcVersion := core.GetBlockChainVersion(chainDb)
+		bcVersion := rawdb.ReadDatabaseVersion(chainDb)
 		if bcVersion != core.BlockChainVersion && bcVersion != 0 {
 			return nil, fmt.Errorf("Blockchain DB version mismatch (%d / %d). Run geth upgradedb.\n", bcVersion, core.BlockChainVersion)
 		}
-		core.WriteBlockChainVersion(chainDb, core.BlockChainVersion)
+		rawdb.WriteDatabaseVersion(chainDb, core.BlockChainVersion)
 	}
-
-	vmConfig := vm.Config{EnablePreimageRecording: config.EnablePreimageRecording}
-	eth.blockchain, err = core.NewBlockChain(chainDb, eth.chainConfig, eth.engine, vmConfig)
+	var (
+		vmConfig    = vm.Config{EnablePreimageRecording: config.EnablePreimageRecording}
+		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieNodeLimit: config.TrieCache, TrieTimeLimit: config.TrieTimeout}
+	)
+	yoc.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, yoc.chainConfig, yoc.engine, vmConfig)
 	if err != nil {
 		return nil, err
 	}
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
-		eth.blockchain.SetHead(compat.RewindTo)
-		core.WriteChainConfig(chainDb, genesisHash, chainConfig)
+		yoc.blockchain.SetHead(compat.RewindTo)
+		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
-	eth.bloomIndexer.Start(eth.blockchain)
+	yoc.bloomIndexer.Start(yoc.blockchain)
 
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain)
+	yoc.txPool = core.NewTxPool(config.TxPool, yoc.chainConfig, yoc.blockchain)
 
-	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb); err != nil {
+	if yoc.protocolManager, err = NewProtocolManager(yoc.chainConfig, config.SyncMode, config.NetworkId, yoc.eventMux, yoc.txPool, yoc.engine, yoc.blockchain, chainDb); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine)
-	eth.miner.SetExtra(makeExtraData(config.ExtraData))
 
-	eth.ApiBackend = &YOCApiBackend{eth, nil}
+	yoc.miner = miner.New(yoc, yoc.chainConfig, yoc.EventMux(), yoc.engine)
+	yoc.miner.SetExtra(makeExtraData(config.ExtraData))
+
+	yoc.APIBackend = &YocAPIBackend{yoc, nil}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.GasPrice
 	}
-	eth.ApiBackend.gpo = gasprice.NewOracle(eth.ApiBackend, gpoParams)
+	yoc.APIBackend.gpo = gasprice.NewOracle(yoc.APIBackend, gpoParams)
 
-	return eth, nil
+	return yoc, nil
 }
 
 func makeExtraData(extra []byte) []byte {
@@ -171,7 +172,7 @@ func makeExtraData(extra []byte) []byte {
 		// create default extradata
 		extra, _ = rlp.EncodeToBytes([]interface{}{
 			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
-			"geth",
+			"yocoin",
 			runtime.Version(),
 			runtime.GOOS,
 		})
@@ -190,27 +191,27 @@ func CreateDB(ctx *node.ServiceContext, config *Config, name string) (yocdb.Data
 		return nil, err
 	}
 	if db, ok := db.(*yocdb.LDBDatabase); ok {
-		db.Meter("yo/db/chaindata/")
+		db.Meter("eth/db/chaindata/")
 	}
 	return db, nil
 }
 
-// CreateConsensusEngine creates the required type of consensus engine instance for an YOC service
+// CreateConsensusEngine creates the required type of consensus engine instance for an YoCoin service
 func CreateConsensusEngine(ctx *node.ServiceContext, config *yochash.Config, chainConfig *params.ChainConfig, db yocdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
 	}
 	// Otherwise assume proof-of-work
-	switch {
-	case config.PowMode == yochash.ModeFake:
-		log.Warn("Ethash used in fake mode")
+	switch config.PowMode {
+	case yochash.ModeFake:
+		log.Warn("Yochash used in fake mode")
 		return yochash.NewFaker()
-	case config.PowMode == yochash.ModeTest:
-		log.Warn("Ethash used in test mode")
+	case yochash.ModeTest:
+		log.Warn("Yochash used in test mode")
 		return yochash.NewTester()
-	case config.PowMode == yochash.ModeShared:
-		log.Warn("Ethash used in shared mode")
+	case yochash.ModeShared:
+		log.Warn("Yochash used in shared mode")
 		return yochash.NewShared()
 	default:
 		engine := yochash.New(yochash.Config{
@@ -226,10 +227,10 @@ func CreateConsensusEngine(ctx *node.ServiceContext, config *yochash.Config, cha
 	}
 }
 
-// APIs returns the collection of RPC services the ethereum package offers.
+// APIs return the collection of RPC services the yocoin package offers.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *YoCoin) APIs() []rpc.API {
-	apis := yocapi.GetAPIs(s.ApiBackend)
+	apis := yocapi.GetAPIs(s.APIBackend)
 
 	// Append any APIs exposed explicitly by the consensus engine
 	apis = append(apis, s.engine.APIs(s.BlockChain())...)
@@ -237,17 +238,17 @@ func (s *YoCoin) APIs() []rpc.API {
 	// Append all the local APIs and return
 	return append(apis, []rpc.API{
 		{
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
-			Service:   NewPublicYOCAPI(s),
+			Service:   NewPublicYoCoinAPI(s),
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   NewPublicMinerAPI(s),
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   downloader.NewPublicDownloaderAPI(s.protocolManager.downloader, s.eventMux),
 			Public:    true,
@@ -257,9 +258,9 @@ func (s *YoCoin) APIs() []rpc.API {
 			Service:   NewPrivateMinerAPI(s),
 			Public:    false,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
-			Service:   filters.NewPublicFilterAPI(s.ApiBackend, false),
+			Service:   filters.NewPublicFilterAPI(s.APIBackend, false),
 			Public:    true,
 		}, {
 			Namespace: "admin",
@@ -287,43 +288,43 @@ func (s *YoCoin) ResetWithGenesisBlock(gb *types.Block) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
 
-func (s *YoCoin) Etherbase() (eb common.Address, err error) {
+func (s *YoCoin) YOCbase() (eb common.Address, err error) {
 	s.lock.RLock()
-	etherbase := s.etherbase
+	yocbase := s.yocbase
 	s.lock.RUnlock()
 
-	if etherbase != (common.Address{}) {
-		return etherbase, nil
+	if yocbase != (common.Address{}) {
+		return yocbase, nil
 	}
 	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
 		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-			etherbase := accounts[0].Address
+			yocbase := accounts[0].Address
 
 			s.lock.Lock()
-			s.etherbase = etherbase
+			s.yocbase = yocbase
 			s.lock.Unlock()
 
-			log.Info("Etherbase automatically configured", "address", etherbase)
-			return etherbase, nil
+			log.Info("Etherbase automatically configured", "address", yocbase)
+			return yocbase, nil
 		}
 	}
-	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
+	return common.Address{}, fmt.Errorf("yocbase must be explicitly specified")
 }
 
-// set in js console via admin interface or wrapper from cli flags
-func (self *YoCoin) SetEtherbase(etherbase common.Address) {
-	self.lock.Lock()
-	self.etherbase = etherbase
-	self.lock.Unlock()
+// SetYOCbase sets the mining reward address.
+func (s *YoCoin) SetYOCbase(yocbase common.Address) {
+	s.lock.Lock()
+	s.yocbase = yocbase
+	s.lock.Unlock()
 
-	self.miner.SetEtherbase(etherbase)
+	s.miner.SetYOCbase(yocbase)
 }
 
 func (s *YoCoin) StartMining(local bool) error {
-	eb, err := s.Etherbase()
+	eb, err := s.YOCbase()
 	if err != nil {
-		log.Error("Cannot start mining without etherbase", "err", err)
-		return fmt.Errorf("etherbase missing: %v", err)
+		log.Error("Cannot start mining without yocbase", "err", err)
+		return fmt.Errorf("yocbase missing: %v", err)
 	}
 	if clique, ok := s.engine.(*clique.Clique); ok {
 		wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
@@ -336,7 +337,7 @@ func (s *YoCoin) StartMining(local bool) error {
 	if local {
 		// If local (CPU) mining is started, we can disable the transaction rejection
 		// mechanism introduced to speed sync times. CPU mining on mainnet is ludicrous
-		// so noone will ever hit this path, whereas marking sync done on CPU mining
+		// so none will ever hit this path, whereas marking sync done on CPU mining
 		// will ensure that private networks work in single miner mode too.
 		atomic.StoreUint32(&s.protocolManager.acceptTxs, 1)
 	}
@@ -355,8 +356,8 @@ func (s *YoCoin) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *YoCoin) Engine() consensus.Engine           { return s.engine }
 func (s *YoCoin) ChainDb() yocdb.Database            { return s.chainDb }
 func (s *YoCoin) IsListening() bool                  { return true } // Always listening
-func (s *YoCoin) YOCVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
-func (s *YoCoin) NetVersion() uint64                 { return s.networkId }
+func (s *YoCoin) YocVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
+func (s *YoCoin) NetVersion() uint64                 { return s.networkID }
 func (s *YoCoin) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
 
 // Protocols implements node.Service, returning all the currently configured
@@ -369,7 +370,7 @@ func (s *YoCoin) Protocols() []p2p.Protocol {
 }
 
 // Start implements node.Service, starting all internal goroutines needed by the
-// YOC protocol implementation.
+// YoCoin protocol implementation.
 func (s *YoCoin) Start(srvr *p2p.Server) error {
 	// Start the bloom bits servicing goroutines
 	s.startBloomHandlers()
@@ -380,10 +381,10 @@ func (s *YoCoin) Start(srvr *p2p.Server) error {
 	// Figure out a max peers count based on the server limits
 	maxPeers := srvr.MaxPeers
 	if s.config.LightServ > 0 {
-		maxPeers -= s.config.LightPeers
-		if maxPeers < srvr.MaxPeers/2 {
-			maxPeers = srvr.MaxPeers / 2
+		if s.config.LightPeers >= srvr.MaxPeers {
+			return fmt.Errorf("invalid peer config: light peer count (%d) >= total peer count (%d)", s.config.LightPeers, srvr.MaxPeers)
 		}
+		maxPeers -= s.config.LightPeers
 	}
 	// Start the networking layer and the light server if requested
 	s.protocolManager.Start(maxPeers)
@@ -394,13 +395,11 @@ func (s *YoCoin) Start(srvr *p2p.Server) error {
 }
 
 // Stop implements node.Service, terminating all internal goroutines used by the
-// YOC protocol.
+// YoCoin protocol.
 func (s *YoCoin) Stop() error {
-	if s.stopDbUpgrade != nil {
-		s.stopDbUpgrade()
-	}
 	s.bloomIndexer.Close()
 	s.blockchain.Stop()
+	s.engine.Close()
 	s.protocolManager.Stop()
 	if s.lesServer != nil {
 		s.lesServer.Stop()
@@ -411,6 +410,5 @@ func (s *YoCoin) Stop() error {
 
 	s.chainDb.Close()
 	close(s.shutdownChan)
-
 	return nil
 }

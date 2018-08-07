@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/cp"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/Yocoin15/Yocoin_Sources/accounts"
 	"github.com/Yocoin15/Yocoin_Sources/common"
+	"github.com/cespare/cp"
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -83,7 +83,7 @@ func TestWatchNoDir(t *testing.T) {
 
 	// Create ks but not the directory that it watches.
 	rand.Seed(time.Now().UnixNano())
-	dir := filepath.Join(os.TempDir(), fmt.Sprintf("eth-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
+	dir := filepath.Join(os.TempDir(), fmt.Sprintf("yoc-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
 	ks := NewKeyStore(dir, LightScryptN, LightScryptP)
 
 	list := ks.Accounts()
@@ -309,7 +309,7 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 
 	// Create a temporary kesytore to test with
 	rand.Seed(time.Now().UnixNano())
-	dir := filepath.Join(os.TempDir(), fmt.Sprintf("eth-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
+	dir := filepath.Join(os.TempDir(), fmt.Sprintf("yoc-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
 	ks := NewKeyStore(dir, LightScryptN, LightScryptP)
 
 	list := ks.Accounts()

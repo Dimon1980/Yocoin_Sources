@@ -3,7 +3,7 @@
 
 // Contains all the wrappers from the params package.
 
-package geth
+package yocoin
 
 import (
 	"encoding/json"
@@ -13,13 +13,13 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/params"
 )
 
-// MainnetGenesis returns the JSON spec to use for the main YOC network. It
+// MainnetGenesis returns the JSON spec to use for the main YoCoin network. It
 // is actually empty since that defaults to the hard coded binary genesis block.
 func MainnetGenesis() string {
 	return ""
 }
 
-// TestnetGenesis returns the JSON spec to use for the YOC test network.
+// TestnetGenesis returns the JSON spec to use for the YoCoin test network.
 func TestnetGenesis() string {
 	enc, err := json.Marshal(core.DefaultTestnetGenesisBlock())
 	if err != nil {

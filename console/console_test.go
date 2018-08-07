@@ -16,9 +16,9 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
 	"github.com/Yocoin15/Yocoin_Sources/internal/jsre"
 	"github.com/Yocoin15/Yocoin_Sources/node"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
 )
 
 const (
@@ -62,7 +62,7 @@ func (p *hookedPrompter) SetWordCompleter(completer WordCompleter) {}
 type tester struct {
 	workspace string
 	stack     *node.Node
-	ethereum  *yoc.YoCoin
+	yocoin    *yoc.YoCoin
 	console   *Console
 	input     *hookedPrompter
 	output    *bytes.Buffer
@@ -77,22 +77,22 @@ func newTester(t *testing.T, confOverride func(*yoc.Config)) *tester {
 		t.Fatalf("failed to create temporary keystore: %v", err)
 	}
 
-	// Create a networkless protocol stack and start an YOC service within
+	// Create a networkless protocol stack and start an YoCoin service within
 	stack, err := node.New(&node.Config{DataDir: workspace, UseLightweightKDF: true, Name: testInstance})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
 	}
-	ethConf := &yoc.Config{
-		Genesis:   core.DeveloperGenesisBlock(15, common.Address{}),
-		Etherbase: common.HexToAddress(testAddress),
-		Ethash: yochash.Config{
+	yocConf := &yoc.Config{
+		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+		YOCbase: common.HexToAddress(testAddress),
+		Yochash: yochash.Config{
 			PowMode: yochash.ModeTest,
 		},
 	}
 	if confOverride != nil {
-		confOverride(ethConf)
+		confOverride(yocConf)
 	}
-	if err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) { return yoc.New(ctx, ethConf) }); err != nil {
+	if err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) { return yoc.New(ctx, yocConf) }); err != nil {
 		t.Fatalf("failed to register YoCoin protocol: %v", err)
 	}
 	// Start the node and assemble the JavaScript console around it
@@ -118,13 +118,13 @@ func newTester(t *testing.T, confOverride func(*yoc.Config)) *tester {
 		t.Fatalf("failed to create JavaScript console: %v", err)
 	}
 	// Create the final tester and return
-	var ethereum *yoc.YoCoin
-	stack.Service(&ethereum)
+	var yocoin *yoc.YoCoin
+	stack.Service(&yocoin)
 
 	return &tester{
 		workspace: workspace,
 		stack:     stack,
-		ethereum:  ethereum,
+		yocoin:    yocoin,
 		console:   console,
 		input:     prompter,
 		output:    printer,

@@ -37,14 +37,14 @@ func (w *wizard) makeGenesis() {
 	// Figure out which consensus engine to choose
 	fmt.Println()
 	fmt.Println("Which consensus engine to use? (default = clique)")
-	fmt.Println(" 1. Ethash - proof-of-work")
+	fmt.Println(" 1. Yochash - proof-of-work")
 	fmt.Println(" 2. Clique - proof-of-authority")
 
 	choice := w.read()
 	switch {
 	case choice == "1":
-		// In case of ethash, we're pretty much done
-		genesis.Config.Ethash = new(params.EthashConfig)
+		// In case of yochash, we're pretty much done
+		genesis.Config.Yochash = new(params.YochashConfig)
 		genesis.ExtraData = make([]byte, 32)
 
 	case choice == "" || choice == "2":
@@ -108,7 +108,7 @@ func (w *wizard) makeGenesis() {
 	// Query the user for some custom extras
 	fmt.Println()
 	fmt.Println("Specify your chain/network ID if you want an explicit one (default = random)")
-	genesis.Config.ChainId = new(big.Int).SetUint64(uint64(w.readDefaultInt(rand.Intn(65536))))
+	genesis.Config.ChainID = new(big.Int).SetUint64(uint64(w.readDefaultInt(rand.Intn(65536))))
 
 	// All done, store the genesis and flush to disk
 	log.Info("Configured new genesis block")

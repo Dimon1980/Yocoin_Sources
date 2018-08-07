@@ -1,18 +1,5 @@
-// Copyright 2015 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Authored and revised by YOC team, 2015-2018
+// License placeholder #1
 
 package params
 
@@ -43,6 +30,9 @@ var MainnetBootnodes = []string{
 	"enode://0c0622a48c7f450f8f78dde2b11ad5a0f4cf2624715f40b00c8da5be35702ff1ac8b290d5912cb8e7ce8a5b451d4dac906e45d5628f5d9e5567a455929dae369@206.189.34.215:30303",
 	"enode://f96eb858b5a25bff4fe863301095f3407b220bde8ccd448dd0ec6b5091ad551e7e785c828470abb076a020660cbcf8d91766ade2f777ec022c10db050333b68c@128.199.59.207:30303",
 }
+
+var TestnetBootnodes = MainnetBootnodes
+var RinkebyBootnodes = MainnetBootnodes
 
 // DiscoveryV5Bootnodes are the enode URLs of the P2P bootstrap nodes for the
 // experimental RLPx v5 topic-discovery network.

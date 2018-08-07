@@ -4,7 +4,7 @@
 // Package keystore implements encrypted storage of secp256k1 private keys.
 //
 // Keys are stored as encrypted JSON files according to the Web3 Secret Storage specification.
-// See https://github.com/ethereum/wiki/wiki/Web3-Secret-Storage-Definition for more information.
+// See https://github.com/yocoin/wiki/wiki/Web3-Secret-Storage-Definition for more information.
 package keystore
 
 import (
@@ -37,7 +37,7 @@ var (
 var KeyStoreType = reflect.TypeOf(&KeyStore{})
 
 // KeyStoreScheme is the protocol scheme prefixing account and wallet URLs.
-var KeyStoreScheme = "keystore"
+const KeyStoreScheme = "keystore"
 
 // Maximum time between wallet refreshes (if filesystem notifications don't work).
 const walletRefreshCycle = 3 * time.Second
@@ -459,7 +459,7 @@ func (ks *KeyStore) Update(a accounts.Account, passphrase, newPassphrase string)
 	return ks.storage.StoreKey(a.URL.Path, key, newPassphrase)
 }
 
-// ImportPreSaleKey decrypts the given YOC presale wallet and stores
+// ImportPreSaleKey decrypts the given YoCoin presale wallet and stores
 // a key file in the key directory. The key file is encrypted with the same passphrase.
 func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (accounts.Account, error) {
 	a, _, err := importPreSaleKey(ks.storage, keyJSON, passphrase)

@@ -18,7 +18,7 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/dashboard"
 	"github.com/Yocoin15/Yocoin_Sources/node"
 	"github.com/Yocoin15/Yocoin_Sources/params"
-	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv5"
+	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv6"
 	"github.com/Yocoin15/Yocoin_Sources/yoc"
 	"github.com/naoina/toml"
 )
@@ -61,15 +61,15 @@ type yocstatsConfig struct {
 	URL string `toml:",omitempty"`
 }
 
-type gethConfig struct {
-	Eth       yoc.Config
+type yocoinConfig struct {
+	Yoc       yoc.Config
 	Shh       whisper.Config
 	Node      node.Config
-	Ethstats  yocstatsConfig
+	Yocstats  yocstatsConfig
 	Dashboard dashboard.Config
 }
 
-func loadConfig(file string, cfg *gethConfig) error {
+func loadConfig(file string, cfg *yocoinConfig) error {
 	f, err := os.Open(file)
 	if err != nil {
 		return err
@@ -88,16 +88,16 @@ func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
 	cfg.Name = clientIdentifier
 	cfg.Version = params.VersionWithCommit(gitCommit)
-	cfg.HTTPModules = append(cfg.HTTPModules, "eth", "shh")
-	cfg.WSModules = append(cfg.WSModules, "eth", "shh")
+	cfg.HTTPModules = append(cfg.HTTPModules, "yoc", "shh")
+	cfg.WSModules = append(cfg.WSModules, "yoc", "shh")
 	cfg.IPCPath = "yocoin.ipc"
 	return cfg
 }
 
-func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
+func makeConfigNode(ctx *cli.Context) (*node.Node, yocoinConfig) {
 	// Load defaults.
-	cfg := gethConfig{
-		Eth:       yoc.DefaultConfig,
+	cfg := yocoinConfig{
+		Yoc:       yoc.DefaultConfig,
 		Shh:       whisper.DefaultConfig,
 		Node:      defaultNodeConfig(),
 		Dashboard: dashboard.DefaultConfig,
@@ -116,9 +116,9 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	if err != nil {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)
 	}
-	utils.SetYOCConfig(ctx, stack, &cfg.Eth)
-	if ctx.GlobalIsSet(utils.EthStatsURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
+	utils.SetYocConfig(ctx, stack, &cfg.Yoc)
+	if ctx.GlobalIsSet(utils.YocStatsURLFlag.Name) {
+		cfg.Yocstats.URL = ctx.GlobalString(utils.YocStatsURLFlag.Name)
 	}
 
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
@@ -140,7 +140,7 @@ func enableWhisper(ctx *cli.Context) bool {
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
 
-	utils.RegisterEthService(stack, &cfg.Eth)
+	utils.RegisterYocService(stack, &cfg.Yoc)
 
 	if ctx.GlobalBool(utils.DashboardEnabledFlag.Name) {
 		utils.RegisterDashboardService(stack, &cfg.Dashboard, gitCommit)
@@ -158,9 +158,9 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		utils.RegisterShhService(stack, &cfg.Shh)
 	}
 
-	// Add the YOC Stats daemon if requested.
-	if cfg.Ethstats.URL != "" {
-		utils.RegisterEthStatsService(stack, cfg.Ethstats.URL)
+	// Add the YoCoin Stats daemon if requested.
+	if cfg.Yocstats.URL != "" {
+		utils.RegisterYocStatsService(stack, cfg.Yocstats.URL)
 	}
 	return stack
 }
@@ -170,8 +170,8 @@ func dumpConfig(ctx *cli.Context) error {
 	_, cfg := makeConfigNode(ctx)
 	comment := ""
 
-	if cfg.Eth.Genesis != nil {
-		cfg.Eth.Genesis = nil
+	if cfg.Yoc.Genesis != nil {
+		cfg.Yoc.Genesis = nil
 		comment += "# Note: this config doesn't contain the genesis block.\n\n"
 	}
 

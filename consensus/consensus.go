@@ -1,16 +1,17 @@
 // Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
-// Package consensus implements different YOC consensus engines.
+// Package consensus implements different YoCoin consensus engines.
 package consensus
 
 import (
+	"math/big"
+
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
-	"math/big"
 )
 
 // ChainReader defines a small collection of methods needed to access the local
@@ -37,7 +38,7 @@ type ChainReader interface {
 
 // Engine is an algorithm agnostic consensus engine.
 type Engine interface {
-	// Author retrieves the YOC address of the account that minted the given
+	// Author retrieves the YoCoin address of the account that minted the given
 	// block, which may be different from the header's coinbase if a consensus
 	// engine is based on signatures.
 	Author(header *types.Header) (common.Address, error)
@@ -82,6 +83,9 @@ type Engine interface {
 
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainReader) []rpc.API
+
+	// Close terminates any background threads maintained by the consensus engine.
+	Close() error
 }
 
 // PoW is a consensus engine based on proof-of-work.

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -33,7 +34,7 @@ const (
 	tcpKeepAliveInterval = 30 * time.Second
 	defaultDialTimeout   = 10 * time.Second // used when dialing if the context has no deadline
 	defaultWriteTimeout  = 10 * time.Second // used for calls if the context has no deadline
-	subscribeTimeout     = 5 * time.Second  // overall timeout eth_subscribe, rpc_modules calls
+	subscribeTimeout     = 5 * time.Second  // overall timeout yoc_subscribe, rpc_modules calls
 )
 
 const (
@@ -47,7 +48,7 @@ const (
 	// The approach taken here is to maintain a per-subscription linked list buffer
 	// shrinks on demand. If the buffer reaches the size below, the subscription is
 	// dropped.
-	maxClientSubscriptionBuffer = 8000
+	maxClientSubscriptionBuffer = 20000
 )
 
 // BatchElem is an element in a batch request.
@@ -118,7 +119,7 @@ type requestOp struct {
 	ids  []json.RawMessage
 	err  error
 	resp chan *jsonrpcMessage // receives up to len(ids) responses
-	sub  *ClientSubscription  // only set for EthSubscribe requests
+	sub  *ClientSubscription  // only set for YocSubscribe requests
 }
 
 func (op *requestOp) wait(ctx context.Context) (*jsonrpcMessage, error) {
@@ -158,11 +159,52 @@ func DialContext(ctx context.Context, rawurl string) (*Client, error) {
 		return DialHTTP(rawurl)
 	case "ws", "wss":
 		return DialWebsocket(ctx, rawurl, "")
+	case "stdio":
+		return DialStdIO(ctx)
 	case "":
 		return DialIPC(ctx, rawurl)
 	default:
 		return nil, fmt.Errorf("no known transport for URL scheme %q", u.Scheme)
 	}
+}
+
+type StdIOConn struct{}
+
+func (io StdIOConn) Read(b []byte) (n int, err error) {
+	return os.Stdin.Read(b)
+}
+
+func (io StdIOConn) Write(b []byte) (n int, err error) {
+	return os.Stdout.Write(b)
+}
+
+func (io StdIOConn) Close() error {
+	return nil
+}
+
+func (io StdIOConn) LocalAddr() net.Addr {
+	return &net.UnixAddr{Name: "stdio", Net: "stdio"}
+}
+
+func (io StdIOConn) RemoteAddr() net.Addr {
+	return &net.UnixAddr{Name: "stdio", Net: "stdio"}
+}
+
+func (io StdIOConn) SetDeadline(t time.Time) error {
+	return &net.OpError{Op: "set", Net: "stdio", Source: nil, Addr: nil, Err: errors.New("deadline not supported")}
+}
+
+func (io StdIOConn) SetReadDeadline(t time.Time) error {
+	return &net.OpError{Op: "set", Net: "stdio", Source: nil, Addr: nil, Err: errors.New("deadline not supported")}
+}
+
+func (io StdIOConn) SetWriteDeadline(t time.Time) error {
+	return &net.OpError{Op: "set", Net: "stdio", Source: nil, Addr: nil, Err: errors.New("deadline not supported")}
+}
+func DialStdIO(ctx context.Context) (*Client, error) {
+	return newClient(ctx, func(_ context.Context) (net.Conn, error) {
+		return StdIOConn{}, nil
+	})
 }
 
 func newClient(initctx context.Context, connectFunc func(context.Context) (net.Conn, error)) (*Client, error) {
@@ -171,7 +213,6 @@ func newClient(initctx context.Context, connectFunc func(context.Context) (net.C
 		return nil, err
 	}
 	_, isHTTP := conn.(*httpConn)
-
 	c := &Client{
 		writeConn:   conn,
 		isHTTP:      isHTTP,
@@ -250,7 +291,7 @@ func (c *Client) CallContext(ctx context.Context, result interface{}, method str
 		return err
 	}
 
-	// dispatch has accepted the request and will close the channel it when it quits.
+	// dispatch has accepted the request and will close the channel when it quits.
 	switch resp, err := op.wait(ctx); {
 	case err != nil:
 		return err
@@ -336,9 +377,9 @@ func (c *Client) BatchCallContext(ctx context.Context, b []BatchElem) error {
 	return err
 }
 
-// EthSubscribe registers a subscripion under the "eth" namespace.
-func (c *Client) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*ClientSubscription, error) {
-	return c.Subscribe(ctx, "eth", channel, args...)
+// YocSubscribe registers a subscripion under the "yoc" namespace.
+func (c *Client) YocSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*ClientSubscription, error) {
+	return c.Subscribe(ctx, "yoc", channel, args...)
 }
 
 // ShhSubscribe registers a subscripion under the "shh" namespace.
@@ -511,13 +552,13 @@ func (c *Client) dispatch(conn net.Conn) {
 			}
 
 		case err := <-c.readErr:
-			log.Debug(fmt.Sprintf("<-readErr: %v", err))
+			log.Debug("<-readErr", "err", err)
 			c.closeRequestOps(err)
 			conn.Close()
 			reading = false
 
 		case newconn := <-c.reconnected:
-			log.Debug(fmt.Sprintf("<-reconnected: (reading=%t) %v", reading, conn.RemoteAddr()))
+			log.Debug("<-reconnected", "reading", reading, "remote", conn.RemoteAddr())
 			if reading {
 				// Wait for the previous read loop to exit. This is a rare case.
 				conn.Close()
@@ -574,7 +615,7 @@ func (c *Client) closeRequestOps(err error) {
 
 func (c *Client) handleNotification(msg *jsonrpcMessage) {
 	if !strings.HasSuffix(msg.Method, notificationMethodSuffix) {
-		log.Debug(fmt.Sprint("dropping non-subscription message: ", msg))
+		log.Debug("dropping non-subscription message", "msg", msg)
 		return
 	}
 	var subResult struct {
@@ -582,7 +623,7 @@ func (c *Client) handleNotification(msg *jsonrpcMessage) {
 		Result json.RawMessage `json:"result"`
 	}
 	if err := json.Unmarshal(msg.Params, &subResult); err != nil {
-		log.Debug(fmt.Sprint("dropping invalid subscription message: ", msg))
+		log.Debug("dropping invalid subscription message", "msg", msg)
 		return
 	}
 	if c.subs[subResult.ID] != nil {
@@ -593,7 +634,7 @@ func (c *Client) handleNotification(msg *jsonrpcMessage) {
 func (c *Client) handleResponse(msg *jsonrpcMessage) {
 	op := c.respWait[string(msg.ID)]
 	if op == nil {
-		log.Debug(fmt.Sprintf("unsolicited response %v", msg))
+		log.Debug("unsolicited response", "msg", msg)
 		return
 	}
 	delete(c.respWait, string(msg.ID))
@@ -603,7 +644,7 @@ func (c *Client) handleResponse(msg *jsonrpcMessage) {
 		return
 	}
 	// For subscription responses, start the subscription if the server
-	// indicates success. EthSubscribe gets unblocked in either case through
+	// indicates success. YocSubscribe gets unblocked in either case through
 	// the op.resp channel.
 	defer close(op.resp)
 	if msg.Error != nil {
@@ -649,7 +690,7 @@ func (c *Client) read(conn net.Conn) error {
 
 // Subscriptions.
 
-// A ClientSubscription represents a subscription established through EthSubscribe.
+// A ClientSubscription represents a subscription established through YocSubscribe.
 type ClientSubscription struct {
 	client    *Client
 	etype     reflect.Type

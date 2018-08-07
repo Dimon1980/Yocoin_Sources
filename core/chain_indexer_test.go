@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
@@ -34,7 +35,7 @@ func TestChainIndexerWithChildren(t *testing.T) {
 // multiple backends. The section size and required confirmation count parameters
 // are randomized.
 func testChainIndexer(t *testing.T, count int) {
-	db, _ := yocdb.NewMemDatabase()
+	db := yocdb.NewMemDatabase()
 	defer db.Close()
 
 	// Create a chain of indexers and ensure they all report empty
@@ -79,10 +80,10 @@ func testChainIndexer(t *testing.T, count int) {
 	inject := func(number uint64) {
 		header := &types.Header{Number: big.NewInt(int64(number)), Extra: big.NewInt(rand.Int63()).Bytes()}
 		if number > 0 {
-			header.ParentHash = GetCanonicalHash(db, number-1)
+			header.ParentHash = rawdb.ReadCanonicalHash(db, number-1)
 		}
-		WriteHeader(db, header)
-		WriteCanonicalHash(db, header.Hash(), number)
+		rawdb.WriteHeader(db, header)
+		rawdb.WriteCanonicalHash(db, header.Hash(), number)
 	}
 	// Start indexer with an already existing chain
 	for i := uint64(0); i <= 100; i++ {

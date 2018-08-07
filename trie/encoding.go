@@ -13,7 +13,7 @@ package trie
 // contains a value. Hex key encoding is used for nodes loaded in memory because it's
 // convenient to access.
 //
-// COMPACT encoding is defined by the YOC Yellow Paper (it's called "hex prefix
+// COMPACT encoding is defined by the YoCoin Yellow Paper (it's called "hex prefix
 // encoding" there) and contains the bytes of the key and a flag. The high nibble of the
 // first byte contains the flag; the lowest bit encoding the oddness of the length and
 // the second-lowest encoding whether the node at the key is a value node. The low nibble
@@ -40,10 +40,9 @@ func hexToCompact(hex []byte) []byte {
 
 func compactToHex(compact []byte) []byte {
 	base := keybytesToHex(compact)
-	base = base[:len(base)-1]
-	// apply terminator flag
-	if base[0] >= 2 {
-		base = append(base, 16)
+	// delete terminator flag
+	if base[0] < 2 {
+		base = base[:len(base)-1]
 	}
 	// apply odd flag
 	chop := 2 - base[0]&1
@@ -70,7 +69,7 @@ func hexToKeybytes(hex []byte) []byte {
 	if len(hex)&1 != 0 {
 		panic("can't convert hex key of odd length")
 	}
-	key := make([]byte, (len(hex)+1)/2)
+	key := make([]byte, len(hex)/2)
 	decodeNibbles(hex, key)
 	return key
 }

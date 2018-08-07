@@ -21,11 +21,11 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
 	"github.com/Yocoin15/Yocoin_Sources/crypto/sha3"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -40,7 +40,6 @@ const (
 // Clique proof-of-authority protocol constants.
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
-	blockPeriod = uint64(15)    // Default minimum difference between two consecutive block's timestamps
 
 	extraVanity = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
@@ -154,7 +153,7 @@ func sigHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
-// ecrecover extracts the YOC account address from a signed header.
+// ecrecover extracts the YoCoin account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
@@ -167,7 +166,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 	}
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
-	// Recover the public key and the YOC address
+	// Recover the public key and the YoCoin address
 	pubkey, err := crypto.Ecrecover(sigHash(header).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
@@ -180,7 +179,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 }
 
 // Clique is the proof-of-authority consensus engine proposed to support the
-// YOC testnet following the Ropsten attacks.
+// YoCoin testnet following the Ropsten attacks.
 type Clique struct {
 	config *params.CliqueConfig // Consensus engine configuration parameters
 	db     yocdb.Database       // Database to store and retrieve snapshot checkpoints
@@ -190,7 +189,7 @@ type Clique struct {
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
 
-	signer common.Address // YOC address of the signing key
+	signer common.Address // YoCoin address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
 }
@@ -216,7 +215,7 @@ func New(config *params.CliqueConfig, db yocdb.Database) *Clique {
 	}
 }
 
-// Author implements consensus.Engine, returning the YOC address recovered
+// Author implements consensus.Engine, returning the YoCoin address recovered
 // from the signature in the header's extra-data section.
 func (c *Clique) Author(header *types.Header) (common.Address, error) {
 	return ecrecover(header, c.signatures)
@@ -370,7 +369,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		// If an on-disk checkpoint snapshot can be found, use that
 		if number%checkpointInterval == 0 {
 			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash); err == nil {
-				log.Trace("Loaded voting snapshot form disk", "number", number, "hash", hash)
+				log.Trace("Loaded voting snapshot from disk", "number", number, "hash", hash)
 				snap = s
 				break
 			}
@@ -658,6 +657,11 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 		return new(big.Int).Set(diffInTurn)
 	}
 	return new(big.Int).Set(diffNoTurn)
+}
+
+// Close implements consensus.Engine. It's a noop for clique as there is are no background threads.
+func (c *Clique) Close() error {
+	return nil
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API to allow

@@ -1,3 +1,6 @@
+// Authored and revised by YOC team, 2017-2018
+// License placeholder #1
+
 // p2psim provides a command-line client for a simulation HTTP API.
 //
 // Here is an example of creating a 2 node network with the first node
@@ -164,7 +167,10 @@ func main() {
 			},
 		},
 	}
-	app.Run(os.Args)
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 func showNetwork(ctx *cli.Context) error {
@@ -259,9 +265,8 @@ func createNode(ctx *cli.Context) error {
 	if len(ctx.Args()) != 0 {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 	}
-	config := &adapters.NodeConfig{
-		Name: ctx.String("name"),
-	}
+	config := adapters.RandomNodeConfig()
+	config.Name = ctx.String("name")
 	if key := ctx.String("key"); key != "" {
 		privKey, err := crypto.HexToECDSA(key)
 		if err != nil {

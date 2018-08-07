@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
-// faucet is a Ether faucet backed by a light client.
+// faucet is a YOC faucet backed by a light client.
 package main
 
 //go:generate go-bindata -nometadata -o website.go faucet.html
@@ -33,10 +33,6 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yocclient"
-	"github.com/Yocoin15/Yocoin_Sources/yocstats"
 	"github.com/Yocoin15/Yocoin_Sources/les"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/node"
@@ -45,13 +41,17 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discv5"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/nat"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	yocoin  "github.com/Yocoin15/Yocoin_Sources/yoc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yocclient"
+	"github.com/Yocoin15/Yocoin_Sources/yocstats"
 	"golang.org/x/net/websocket"
 )
 
 var (
 	genesisFlag = flag.String("genesis", "", "Genesis json file to seed the chain with")
 	apiPortFlag = flag.Int("apiport", 8080, "Listener port for the HTTP API connection")
-	ethPortFlag = flag.Int("ethport", 30303, "Listener port for the devp2p connection")
+	yocPortFlag = flag.Int("ethport", 30303, "Listener port for the devp2p connection")
 	bootFlag    = flag.String("bootnodes", "", "Comma separated bootnode enode URLs to seed with")
 	netFlag     = flag.Uint64("network", 0, "Network ID to use for the YoCoin protocol")
 	statsFlag   = flag.String("yocstats", "", "Ethstats network monitoring auth string")
@@ -64,9 +64,6 @@ var (
 	accJSONFlag = flag.String("account.json", "", "Key json file to fund user requests with")
 	accPassFlag = flag.String("account.pass", "", "Decryption password to access faucet funds")
 
-	githubUser  = flag.String("github.user", "", "GitHub user to authenticate with for Gist access")
-	githubToken = flag.String("github.token", "", "GitHub personal token to access Gists with")
-
 	captchaToken  = flag.String("captcha.token", "", "Recaptcha site key to authenticate client side")
 	captchaSecret = flag.String("captcha.secret", "", "Recaptcha secret key to authenticate server side")
 
@@ -75,7 +72,7 @@ var (
 )
 
 var (
-	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	yoc = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
 func main() {
@@ -89,7 +86,7 @@ func main() {
 	for i := 0; i < *tiersFlag; i++ {
 		// Calculate the amount for the next tier and format it
 		amount := float64(*payoutFlag) * math.Pow(2.5, float64(i))
-		amounts[i] = fmt.Sprintf("%s Ethers", strconv.FormatFloat(amount, 'f', -1, 64))
+		amounts[i] = fmt.Sprintf("%s YOCs", strconv.FormatFloat(amount, 'f', -1, 64))
 		if amount == 1 {
 			amounts[i] = strings.TrimSuffix(amounts[i], "s")
 		}
@@ -160,7 +157,7 @@ func main() {
 	ks.Unlock(acc, pass)
 
 	// Assemble and start the faucet light service
-	faucet, err := newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes())
+	faucet, err := newFaucet(genesis, *yocPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes())
 	if err != nil {
 		log.Crit("Failed to start faucet", "err", err)
 	}
@@ -174,16 +171,16 @@ func main() {
 // request represents an accepted funding request.
 type request struct {
 	Avatar  string             `json:"avatar"`  // Avatar URL to make the UI nicer
-	Account common.Address     `json:"account"` // YOC address being funded
+	Account common.Address     `json:"account"` // YoCoin address being funded
 	Time    time.Time          `json:"time"`    // Timestamp when the request was accepted
 	Tx      *types.Transaction `json:"tx"`      // Transaction funding the account
 }
 
-// faucet represents a crypto faucet backed by an YOC light client.
+// faucet represents a crypto faucet backed by an YoCoin light client.
 type faucet struct {
 	config *params.ChainConfig // Chain configurations for signing
-	stack  *node.Node          // YOC protocol stack
-	client *yocclient.Client   // Client connection to the YOC chain
+	stack  *node.Node          // YoCoin protocol stack
+	client *yocclient.Client   // Client connection to the YoCoin chain
 	index  []byte              // Index page to serve up on the web
 
 	keystore *keystore.KeyStore // Keystore containing the single signer
@@ -202,8 +199,8 @@ type faucet struct {
 func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network uint64, stats string, ks *keystore.KeyStore, index []byte) (*faucet, error) {
 	// Assemble the raw devp2p protocol stack
 	stack, err := node.New(&node.Config{
-		Name:    "geth",
-		Version: params.Version,
+		Name:    "yocoin",
+		Version: params.VersionWithMeta,
 		DataDir: filepath.Join(os.Getenv("HOME"), ".faucet"),
 		P2P: p2p.Config{
 			NAT:              nat.Any(),
@@ -217,9 +214,9 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	if err != nil {
 		return nil, err
 	}
-	// Assemble the YOC light client protocol
+	// Assemble the YoCoin light client protocol
 	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		cfg := yoc.DefaultConfig
+		cfg := yocoin.DefaultConfig
 		cfg.SyncMode = downloader.LightSync
 		cfg.NetworkId = network
 		cfg.Genesis = genesis
@@ -265,7 +262,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	}, nil
 }
 
-// close terminates the YOC connection and tears down the faucet.
+// close terminates the YoCoin connection and tears down the faucet.
 func (f *faucet) close() error {
 	return f.stack.Stop()
 }
@@ -287,7 +284,7 @@ func (f *faucet) webHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(f.index)
 }
 
-// apiHandler handles requests for Ether grants and transaction statuses.
+// apiHandler handles requests for YOC grants and transaction statuses.
 func (f *faucet) apiHandler(conn *websocket.Conn) {
 	// Start tracking the connection and drop at the end
 	defer conn.Close()
@@ -339,7 +336,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 	}
 	// Send over the initial stats and the latest header
 	if err = send(conn, map[string]interface{}{
-		"funds":    balance.Div(balance, ether),
+		"funds":    balance.Div(balance, yoc),
 		"funded":   nonce,
 		"peers":    f.stack.Server().PeerCount(),
 		"requests": f.reqs,
@@ -415,7 +412,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 				continue
 			}
 		}
-		// Retrieve the YOC address to fund, the requesting user and a profile picture
+		// Retrieve the YoCoin address to fund, the requesting user and a profile picture
 		var (
 			username string
 			avatar   string
@@ -437,7 +434,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		case *noauthFlag:
 			username, avatar, address, err = authNoAuth(msg.URL)
 		default:
-			err = errors.New("Something funky happened, please open an issue at https://github.com/Yocoin15/Yocoin_Sources/issues")
+			err = errors.New("Somyocing funky happened, please open an issue at https://github.com/yocoin/go-yocoin/issues")
 		}
 		if err != nil {
 			if err = sendError(conn, err); err != nil {
@@ -456,12 +453,12 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		)
 		if timeout = f.timeouts[username]; time.Now().After(timeout) {
 			// User wasn't funded recently, create the funding transaction
-			amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether)
+			amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), yoc)
 			amount = new(big.Int).Mul(amount, new(big.Int).Exp(big.NewInt(5), big.NewInt(int64(msg.Tier)), nil))
 			amount = new(big.Int).Div(amount, new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(msg.Tier)), nil))
 
 			tx := types.NewTransaction(f.nonce+uint64(len(f.reqs)), address, amount, 21000, f.price, nil)
-			signed, err := f.keystore.SignTx(f.account, tx, f.config.ChainId)
+			signed, err := f.keystore.SignTx(f.account, tx, f.config.ChainID)
 			if err != nil {
 				f.lock.Unlock()
 				if err = sendError(conn, err); err != nil {
@@ -520,9 +517,11 @@ func (f *faucet) loop() {
 	}
 	defer sub.Unsubscribe()
 
-	for {
-		select {
-		case head := <-heads:
+	// Start a goroutine to update the state from head notifications in the background
+	update := make(chan *types.Header)
+
+	go func() {
+		for head := range update {
 			// New chain head arrived, query the current stats and stream to clients
 			var (
 				balance *big.Int
@@ -548,7 +547,7 @@ func (f *faucet) loop() {
 				log.Info("Updated faucet state", "block", head.Number, "hash", head.Hash(), "balance", balance, "nonce", nonce, "price", price)
 			}
 			// Faucet state retrieved, update locally and send to clients
-			balance = new(big.Int).Div(balance, ether)
+			balance = new(big.Int).Div(balance, yoc)
 
 			f.lock.Lock()
 			f.price, f.nonce = price, nonce
@@ -575,6 +574,17 @@ func (f *faucet) loop() {
 				}
 			}
 			f.lock.RUnlock()
+		}
+	}()
+	// Wait for various events and assing to the appropriate background threads
+	for {
+		select {
+		case head := <-heads:
+			// New head arrived, send if for state update if there's none running
+			select {
+			case update <- head:
+			default:
+			}
 
 		case <-f.update:
 			// Pending requests updated, stream to clients
@@ -612,77 +622,29 @@ func sendSuccess(conn *websocket.Conn, msg string) error {
 	return send(conn, map[string]string{"success": msg}, time.Second)
 }
 
-// authGitHub tries to authenticate a faucet request using GitHub gists, returning
-// the username, avatar URL and YOC address to fund on success.
-func authGitHub(url string) (string, string, common.Address, error) {
-	// Retrieve the gist from the GitHub Gist APIs
-	parts := strings.Split(url, "/")
-	req, _ := http.NewRequest("GET", "https://api.github.com/gists/"+parts[len(parts)-1], nil)
-	if *githubUser != "" {
-		req.SetBasicAuth(*githubUser, *githubToken)
-	}
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", "", common.Address{}, err
-	}
-	var gist struct {
-		Owner struct {
-			Login string `json:"login"`
-		} `json:"owner"`
-		Files map[string]struct {
-			Content string `json:"content"`
-		} `json:"files"`
-	}
-	err = json.NewDecoder(res.Body).Decode(&gist)
-	res.Body.Close()
-	if err != nil {
-		return "", "", common.Address{}, err
-	}
-	if gist.Owner.Login == "" {
-		return "", "", common.Address{}, errors.New("Anonymous Gists not allowed")
-	}
-	// Iterate over all the files and look for YOC addresses
-	var address common.Address
-	for _, file := range gist.Files {
-		content := strings.TrimSpace(file.Content)
-		if len(content) == 2+common.AddressLength*2 {
-			address = common.HexToAddress(content)
-		}
-	}
-	if address == (common.Address{}) {
-		return "", "", common.Address{}, errors.New("No YoCoin address found to fund")
-	}
-	// Validate the user's existence since the API is unhelpful here
-	if res, err = http.Head("https://github.com/" + gist.Owner.Login); err != nil {
-		return "", "", common.Address{}, err
-	}
-	res.Body.Close()
-
-	if res.StatusCode != 200 {
-		return "", "", common.Address{}, errors.New("Invalid user... boom!")
-	}
-	// Everything passed validation, return the gathered infos
-	return gist.Owner.Login + "@github", fmt.Sprintf("https://github.com/%s.png?size=64", gist.Owner.Login), address, nil
-}
-
 // authTwitter tries to authenticate a faucet request using Twitter posts, returning
-// the username, avatar URL and YOC address to fund on success.
+// the username, avatar URL and YoCoin address to fund on success.
 func authTwitter(url string) (string, string, common.Address, error) {
 	// Ensure the user specified a meaningful URL, no fancy nonsense
 	parts := strings.Split(url, "/")
 	if len(parts) < 4 || parts[len(parts)-2] != "status" {
 		return "", "", common.Address{}, errors.New("Invalid Twitter status URL")
 	}
-	username := parts[len(parts)-3]
-
 	// Twitter's API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the YOC address and profile URL.
+	// scrape it for the YoCoin address and profile URL.
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
 	}
 	defer res.Body.Close()
+
+	// Resolve the username from the final redirect, no intermediate junk
+	parts = strings.Split(res.Request.URL.String(), "/")
+	if len(parts) < 4 || parts[len(parts)-2] != "status" {
+		return "", "", common.Address{}, errors.New("Invalid Twitter status URL")
+	}
+	username := parts[len(parts)-3]
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
@@ -700,7 +662,7 @@ func authTwitter(url string) (string, string, common.Address, error) {
 }
 
 // authGooglePlus tries to authenticate a faucet request using GooglePlus posts,
-// returning the username, avatar URL and YOC address to fund on success.
+// returning the username, avatar URL and YoCoin address to fund on success.
 func authGooglePlus(url string) (string, string, common.Address, error) {
 	// Ensure the user specified a meaningful URL, no fancy nonsense
 	parts := strings.Split(url, "/")
@@ -711,7 +673,7 @@ func authGooglePlus(url string) (string, string, common.Address, error) {
 
 	// Google's API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the YOC address and profile URL.
+	// scrape it for the YoCoin address and profile URL.
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
@@ -734,7 +696,7 @@ func authGooglePlus(url string) (string, string, common.Address, error) {
 }
 
 // authFacebook tries to authenticate a faucet request using Facebook posts,
-// returning the username, avatar URL and YOC address to fund on success.
+// returning the username, avatar URL and YoCoin address to fund on success.
 func authFacebook(url string) (string, string, common.Address, error) {
 	// Ensure the user specified a meaningful URL, no fancy nonsense
 	parts := strings.Split(url, "/")
@@ -745,7 +707,7 @@ func authFacebook(url string) (string, string, common.Address, error) {
 
 	// Facebook's Graph API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the YOC address and profile URL.
+	// scrape it for the YoCoin address and profile URL.
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
@@ -767,7 +729,7 @@ func authFacebook(url string) (string, string, common.Address, error) {
 	return username + "@facebook", avatar, address, nil
 }
 
-// authNoAuth tries to interpret a faucet request as a plain YOC address,
+// authNoAuth tries to interpret a faucet request as a plain YoCoin address,
 // without actually performing any remote authentication. This mode is prone to
 // Byzantine attack, so only ever use for truly private networks.
 func authNoAuth(url string) (string, string, common.Address, error) {

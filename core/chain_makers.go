@@ -13,14 +13,8 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
-)
-
-// So we can deterministically seed different blockchains
-var (
-	canonicalSeed = 1
-	forkSeed      = 2
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // BlockGen creates blocks for testing.
@@ -69,11 +63,23 @@ func (b *BlockGen) SetExtra(data []byte) {
 // added. Notably, contract code relying on the BLOCKHASH instruction
 // will panic during execution.
 func (b *BlockGen) AddTx(tx *types.Transaction) {
+	b.AddTxWithChain(nil, tx)
+}
+
+// AddTxWithChain adds a transaction to the generated block. If no coinbase has
+// been set, the block's coinbase is set to the zero address.
+//
+// AddTxWithChain panics if the transaction cannot be executed. In addition to
+// the protocol-imposed limitations (gas limit, etc.), there are some
+// further limitations on the content of transactions that can be
+// added. If contract code relies on the BLOCKHASH instruction,
+// the block in chain will be returned.
+func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) {
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
-	receipt, _, err := ApplyTransaction(b.config, nil, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{})
+	receipt, _, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{})
 	if err != nil {
 		panic(err)
 	}
@@ -153,7 +159,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	genblock := func(i int, parent *types.Block, statedb *state.StateDB) (*types.Block, types.Receipts) {
 		// TODO(karalabe): This is needed for clique, which depends on multiple blocks.
 		// It's nonetheless ugly to spin up a blockchain here. Get rid of this somehow.
-		blockchain, _ := NewBlockChain(db, config, engine, vm.Config{})
+		blockchain, _ := NewBlockChain(db, nil, config, engine, vm.Config{})
 		defer blockchain.Stop()
 
 		b := &BlockGen{i: i, parent: parent, chain: blocks, chainReader: blockchain, statedb: statedb, config: config, engine: engine}
@@ -179,9 +185,12 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if b.engine != nil {
 			block, _ := b.engine.Finalize(b.chainReader, b.header, statedb, b.txs, b.uncles, b.receipts)
 			// Write state changes to db
-			_, err := statedb.CommitTo(db, config.IsEIP158(b.header.Number))
+			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))
+			}
+			if err := statedb.Database().TrieDB().Commit(root, false); err != nil {
+				panic(fmt.Sprintf("trie write error: %v", err))
 			}
 			return block, b.receipts
 		}
@@ -222,32 +231,6 @@ func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.S
 		Number:   new(big.Int).Add(parent.Number(), common.Big1),
 		Time:     time,
 	}
-}
-
-// newCanonical creates a chain database, and injects a deterministic canonical
-// chain. Depending on the full flag, if creates either a full block chain or a
-// header only chain.
-func newCanonical(engine consensus.Engine, n int, full bool) (yocdb.Database, *BlockChain, error) {
-	// Initialize a fresh chain with only a genesis block
-	gspec := new(Genesis)
-	db, _ := yocdb.NewMemDatabase()
-	genesis := gspec.MustCommit(db)
-
-	blockchain, _ := NewBlockChain(db, params.AllEthashProtocolChanges, engine, vm.Config{})
-	// Create and inject the requested chain
-	if n == 0 {
-		return db, blockchain, nil
-	}
-	if full {
-		// Full block-chain requested
-		blocks := makeBlockChain(genesis, n, engine, db, canonicalSeed)
-		_, err := blockchain.InsertChain(blocks)
-		return db, blockchain, err
-	}
-	// Header-only chain requested
-	headers := makeHeaderChain(genesis.Header(), n, engine, db, canonicalSeed)
-	_, err := blockchain.InsertHeaderChain(headers, 1)
-	return db, blockchain, err
 }
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.

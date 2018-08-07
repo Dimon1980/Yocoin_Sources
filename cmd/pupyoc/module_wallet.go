@@ -23,8 +23,8 @@ ADD genesis.json /genesis.json
 
 RUN \
   echo 'node server.js &'                     > wallet.sh && \
-	echo 'geth --cache 512 init /genesis.json' >> wallet.sh && \
-	echo $'geth --networkid {{.NetworkID}} --port {{.NodePort}} --bootnodes {{.Bootnodes}} --yocstats \'{{.Ethstats}}\' --cache=512 --rpc --rpcaddr=0.0.0.0 --rpccorsdomain "*"' >> wallet.sh
+	echo 'yocoin --cache 512 init /genesis.json' >> wallet.sh && \
+	echo $'exec yocoin --networkid {{.NetworkID}} --port {{.NodePort}} --bootnodes {{.Bootnodes}} --yocstats \'{{.Ethstats}}\' --cache=512 --rpc --rpcaddr=0.0.0.0 --rpccorsdomain "*" --rpcvhosts "*"' >> wallet.sh
 
 RUN \
 	sed -i 's/PuppethNetworkID/{{.NetworkID}}/g' dist/js/etherwallet-master.js && \
@@ -50,7 +50,7 @@ services:
       - "{{.RPCPort}}:8545"{{if not .VHost}}
       - "{{.WebPort}}:80"{{end}}
     volumes:
-      - {{.Datadir}}:/root/.ethereum
+      - {{.Datadir}}:/root/.yocoin
     environment:
       - NODE_PORT={{.NodePort}}/tcp
       - STATS={{.Ethstats}}{{if .VHost}}
@@ -107,9 +107,9 @@ func deployWallet(client *sshClient, network string, bootnodes []string, config 
 
 	// Build and deploy the boot or seal node service
 	if nocache {
-		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate", workdir, network, network))
+		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate --timeout 60", workdir, network, network))
 	}
-	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate", workdir, network))
+	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate --timeout 60", workdir, network))
 }
 
 // walletInfos is returned from a web wallet status check to allow reporting
@@ -130,7 +130,7 @@ type walletInfos struct {
 func (info *walletInfos) Report() map[string]string {
 	report := map[string]string{
 		"Data directory":         info.datadir,
-		"Ethstats username":      info.yocstats,
+		"Yocstats username":      info.yocstats,
 		"Node listener port ":    strconv.Itoa(info.nodePort),
 		"RPC listener port ":     strconv.Itoa(info.rpcPort),
 		"Website address ":       info.webHost,
@@ -176,7 +176,7 @@ func checkWallet(client *sshClient, network string) (*walletInfos, error) {
 	}
 	// Assemble and return the useful infos
 	stats := &walletInfos{
-		datadir:  infos.volumes["/root/.ethereum"],
+		datadir:  infos.volumes["/root/.yocoin"],
 		nodePort: nodePort,
 		rpcPort:  rpcPort,
 		webHost:  host,

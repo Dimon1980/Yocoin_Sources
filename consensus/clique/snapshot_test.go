@@ -11,10 +11,11 @@ import (
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type testerVote struct {
@@ -24,7 +25,7 @@ type testerVote struct {
 }
 
 // testerAccountPool is a pool to maintain currently active tester accounts,
-// mapped from textual names used in the tests below to actual YOC private
+// mapped from textual names used in the tests below to actual YoCoin private
 // keys capable of signing transactions.
 type testerAccountPool struct {
 	accounts map[string]*ecdsa.PrivateKey
@@ -51,7 +52,7 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	if ap.accounts[account] == nil {
 		ap.accounts[account], _ = crypto.GenerateKey()
 	}
-	// Resolve and return the YOC address
+	// Resolve and return the YoCoin address
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
 }
 
@@ -68,7 +69,7 @@ func (r *testerChainReader) GetBlock(common.Hash, uint64) *types.Block   { panic
 func (r *testerChainReader) GetHeaderByHash(common.Hash) *types.Header   { panic("not supported") }
 func (r *testerChainReader) GetHeaderByNumber(number uint64) *types.Header {
 	if number == 0 {
-		return core.GetHeader(r.db, core.GetCanonicalHash(r.db, 0), 0)
+		return rawdb.ReadHeader(r.db, rawdb.ReadCanonicalHash(r.db, 0), 0)
 	}
 	panic("not supported")
 }
@@ -338,7 +339,7 @@ func TestVoting(t *testing.T) {
 			copy(genesis.ExtraData[extraVanity+j*common.AddressLength:], signer[:])
 		}
 		// Create a pristine blockchain with the genesis injected
-		db, _ := yocdb.NewMemDatabase()
+		db := yocdb.NewMemDatabase()
 		genesis.Commit(db)
 
 		// Assemble a chain of headers from the cast votes
@@ -346,7 +347,7 @@ func TestVoting(t *testing.T) {
 		for j, vote := range tt.votes {
 			headers[j] = &types.Header{
 				Number:   big.NewInt(int64(j) + 1),
-				Time:     big.NewInt(int64(j) * int64(blockPeriod)),
+				Time:     big.NewInt(int64(j) * 15),
 				Coinbase: accounts.address(vote.voted),
 				Extra:    make([]byte, extraVanity+extraSeal),
 			}

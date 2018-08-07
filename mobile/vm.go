@@ -3,7 +3,7 @@
 
 // Contains all the wrappers from the core/types package.
 
-package geth
+package yocoin
 
 import (
 	"errors"

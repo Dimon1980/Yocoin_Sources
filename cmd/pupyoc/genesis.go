@@ -15,9 +15,9 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/params"
 )
 
-// cppYOCGenesisSpec represents the genesis specification format used by the
-// C++ YOC implementation.
-type cppYOCGenesisSpec struct {
+// cppYoCoinGenesisSpec represents the genesis specification format used by the
+// C++ YoCoin implementation.
+type cppYoCoinGenesisSpec struct {
 	SealEngine string `json:"sealEngine"`
 	Params     struct {
 		AccountStartNonce       hexutil.Uint64 `json:"accountStartNonce"`
@@ -49,39 +49,39 @@ type cppYOCGenesisSpec struct {
 		GasLimit   hexutil.Uint64 `json:"gasLimit"`
 	} `json:"genesis"`
 
-	Accounts map[common.Address]*cppYOCGenesisSpecAccount `json:"accounts"`
+	Accounts map[common.Address]*cppYoCoinGenesisSpecAccount `json:"accounts"`
 }
 
-// cppYOCGenesisSpecAccount is the prefunded genesis account and/or precompiled
+// cppYoCoinGenesisSpecAccount is the prefunded genesis account and/or precompiled
 // contract definition.
-type cppYOCGenesisSpecAccount struct {
-	Balance     *hexutil.Big                   `json:"balance"`
-	Nonce       uint64                         `json:"nonce,omitempty"`
-	Precompiled *cppYOCGenesisSpecBuiltin `json:"precompiled,omitempty"`
+type cppYoCoinGenesisSpecAccount struct {
+	Balance     *hexutil.Big                 `json:"balance"`
+	Nonce       uint64                       `json:"nonce,omitempty"`
+	Precompiled *cppYoCoinGenesisSpecBuiltin `json:"precompiled,omitempty"`
 }
 
-// cppYOCGenesisSpecBuiltin is the precompiled contract definition.
-type cppYOCGenesisSpecBuiltin struct {
-	Name          string                               `json:"name,omitempty"`
-	StartingBlock hexutil.Uint64                       `json:"startingBlock,omitempty"`
-	Linear        *cppYOCGenesisSpecLinearPricing `json:"linear,omitempty"`
+// cppYoCoinGenesisSpecBuiltin is the precompiled contract definition.
+type cppYoCoinGenesisSpecBuiltin struct {
+	Name          string                             `json:"name,omitempty"`
+	StartingBlock hexutil.Uint64                     `json:"startingBlock,omitempty"`
+	Linear        *cppYoCoinGenesisSpecLinearPricing `json:"linear,omitempty"`
 }
 
-type cppYOCGenesisSpecLinearPricing struct {
+type cppYoCoinGenesisSpecLinearPricing struct {
 	Base uint64 `json:"base"`
 	Word uint64 `json:"word"`
 }
 
-// newCppYOCGenesisSpec converts a go-ethereum genesis block into a Parity specific
+// newCppYoCoinGenesisSpec converts a yocoin genesis block into a Parity specific
 // chain specification format.
-func newCppYOCGenesisSpec(network string, genesis *core.Genesis) (*cppYOCGenesisSpec, error) {
-	// Only ethash is currently supported between go-ethereum and cpp-ethereum
-	if genesis.Config.Ethash == nil {
+func newCppYoCoinGenesisSpec(network string, genesis *core.Genesis) (*cppYoCoinGenesisSpec, error) {
+	// Only yochash is currently supported between yocoin and cpp-yocoin
+	if genesis.Config.Yochash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}
 	// Reconstruct the chain spec in Parity's format
-	spec := &cppYOCGenesisSpec{
-		SealEngine: "Ethash",
+	spec := &cppYoCoinGenesisSpec{
+		SealEngine: "Yochash",
 	}
 	spec.Params.AccountStartNonce = 0
 	spec.Params.HomesteadForkBlock = (hexutil.Uint64)(genesis.Config.HomesteadBlock.Uint64())
@@ -90,8 +90,8 @@ func newCppYOCGenesisSpec(network string, genesis *core.Genesis) (*cppYOCGenesis
 	spec.Params.ByzantiumForkBlock = (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64())
 	spec.Params.ConstantinopleForkBlock = (hexutil.Uint64)(math.MaxUint64)
 
-	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainId.Uint64())
-	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainId.Uint64())
+	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
+	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
 	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
@@ -113,36 +113,36 @@ func newCppYOCGenesisSpec(network string, genesis *core.Genesis) (*cppYOCGenesis
 	spec.Genesis.ExtraData = (hexutil.Bytes)(genesis.ExtraData)
 	spec.Genesis.GasLimit = (hexutil.Uint64)(genesis.GasLimit)
 
-	spec.Accounts = make(map[common.Address]*cppYOCGenesisSpecAccount)
+	spec.Accounts = make(map[common.Address]*cppYoCoinGenesisSpecAccount)
 	for address, account := range genesis.Alloc {
-		spec.Accounts[address] = &cppYOCGenesisSpecAccount{
+		spec.Accounts[address] = &cppYoCoinGenesisSpecAccount{
 			Balance: (*hexutil.Big)(account.Balance),
 			Nonce:   account.Nonce,
 		}
 	}
-	spec.Accounts[common.BytesToAddress([]byte{1})].Precompiled = &cppYOCGenesisSpecBuiltin{
-		Name: "ecrecover", Linear: &cppYOCGenesisSpecLinearPricing{Base: 3000},
+	spec.Accounts[common.BytesToAddress([]byte{1})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+		Name: "ecrecover", Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 3000},
 	}
-	spec.Accounts[common.BytesToAddress([]byte{2})].Precompiled = &cppYOCGenesisSpecBuiltin{
-		Name: "sha256", Linear: &cppYOCGenesisSpecLinearPricing{Base: 60, Word: 12},
+	spec.Accounts[common.BytesToAddress([]byte{2})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+		Name: "sha256", Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 60, Word: 12},
 	}
-	spec.Accounts[common.BytesToAddress([]byte{3})].Precompiled = &cppYOCGenesisSpecBuiltin{
-		Name: "ripemd160", Linear: &cppYOCGenesisSpecLinearPricing{Base: 600, Word: 120},
+	spec.Accounts[common.BytesToAddress([]byte{3})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+		Name: "ripemd160", Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 600, Word: 120},
 	}
-	spec.Accounts[common.BytesToAddress([]byte{4})].Precompiled = &cppYOCGenesisSpecBuiltin{
-		Name: "identity", Linear: &cppYOCGenesisSpecLinearPricing{Base: 15, Word: 3},
+	spec.Accounts[common.BytesToAddress([]byte{4})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+		Name: "identity", Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 15, Word: 3},
 	}
 	if genesis.Config.ByzantiumBlock != nil {
-		spec.Accounts[common.BytesToAddress([]byte{5})].Precompiled = &cppYOCGenesisSpecBuiltin{
+		spec.Accounts[common.BytesToAddress([]byte{5})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
 			Name: "modexp", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()),
 		}
-		spec.Accounts[common.BytesToAddress([]byte{6})].Precompiled = &cppYOCGenesisSpecBuiltin{
-			Name: "alt_bn128_G1_add", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()), Linear: &cppYOCGenesisSpecLinearPricing{Base: 500},
+		spec.Accounts[common.BytesToAddress([]byte{6})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+			Name: "alt_bn128_G1_add", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()), Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 500},
 		}
-		spec.Accounts[common.BytesToAddress([]byte{7})].Precompiled = &cppYOCGenesisSpecBuiltin{
-			Name: "alt_bn128_G1_mul", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()), Linear: &cppYOCGenesisSpecLinearPricing{Base: 40000},
+		spec.Accounts[common.BytesToAddress([]byte{7})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
+			Name: "alt_bn128_G1_mul", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()), Linear: &cppYoCoinGenesisSpecLinearPricing{Base: 40000},
 		}
-		spec.Accounts[common.BytesToAddress([]byte{8})].Precompiled = &cppYOCGenesisSpecBuiltin{
+		spec.Accounts[common.BytesToAddress([]byte{8})].Precompiled = &cppYoCoinGenesisSpecBuiltin{
 			Name: "alt_bn128_pairing_product", StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64()),
 		}
 	}
@@ -153,28 +153,28 @@ func newCppYOCGenesisSpec(network string, genesis *core.Genesis) (*cppYOCGenesis
 type parityChainSpec struct {
 	Name   string `json:"name"`
 	Engine struct {
-		Ethash struct {
+		Yochash struct {
 			Params struct {
-				MinimumDifficulty      *hexutil.Big   `json:"minimumDifficulty"`
-				DifficultyBoundDivisor *hexutil.Big   `json:"difficultyBoundDivisor"`
-				GasLimitBoundDivisor   hexutil.Uint64 `json:"gasLimitBoundDivisor"`
-				DurationLimit          *hexutil.Big   `json:"durationLimit"`
-				BlockReward            *hexutil.Big   `json:"blockReward"`
-				HomesteadTransition    uint64         `json:"homesteadTransition"`
-				EIP150Transition       uint64         `json:"eip150Transition"`
-				EIP160Transition       uint64         `json:"eip160Transition"`
-				EIP161abcTransition    uint64         `json:"eip161abcTransition"`
-				EIP161dTransition      uint64         `json:"eip161dTransition"`
-				EIP649Reward           *hexutil.Big   `json:"eip649Reward"`
-				EIP100bTransition      uint64         `json:"eip100bTransition"`
-				EIP649Transition       uint64         `json:"eip649Transition"`
+				MinimumDifficulty      *hexutil.Big `json:"minimumDifficulty"`
+				DifficultyBoundDivisor *hexutil.Big `json:"difficultyBoundDivisor"`
+				DurationLimit          *hexutil.Big `json:"durationLimit"`
+				BlockReward            *hexutil.Big `json:"blockReward"`
+				HomesteadTransition    uint64       `json:"homesteadTransition"`
+				EIP150Transition       uint64       `json:"eip150Transition"`
+				EIP160Transition       uint64       `json:"eip160Transition"`
+				EIP161abcTransition    uint64       `json:"eip161abcTransition"`
+				EIP161dTransition      uint64       `json:"eip161dTransition"`
+				EIP649Reward           *hexutil.Big `json:"eip649Reward"`
+				EIP100bTransition      uint64       `json:"eip100bTransition"`
+				EIP649Transition       uint64       `json:"eip649Transition"`
 			} `json:"params"`
-		} `json:"Ethash"`
+		} `json:"Yochash"`
 	} `json:"engine"`
 
 	Params struct {
 		MaximumExtraDataSize hexutil.Uint64 `json:"maximumExtraDataSize"`
 		MinGasLimit          hexutil.Uint64 `json:"minGasLimit"`
+		GasLimitBoundDivisor hexutil.Uint64 `json:"gasLimitBoundDivisor"`
 		NetworkID            hexutil.Uint64 `json:"networkID"`
 		MaxCodeSize          uint64         `json:"maxCodeSize"`
 		EIP155Transition     uint64         `json:"eip155Transition"`
@@ -243,11 +243,11 @@ type parityChainSpecAltBnPairingPricing struct {
 	Pair uint64 `json:"pair"`
 }
 
-// newParityChainSpec converts a go-ethereum genesis block into a Parity specific
+// newParityChainSpec converts a yocoin genesis block into a Parity specific
 // chain specification format.
 func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []string) (*parityChainSpec, error) {
-	// Only ethash is currently supported between go-ethereum and Parity
-	if genesis.Config.Ethash == nil {
+	// Only yochash is currently supported between yocoin and Parity
+	if genesis.Config.Yochash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}
 	// Reconstruct the chain spec in Parity's format
@@ -255,23 +255,23 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 		Name:  network,
 		Nodes: bootnodes,
 	}
-	spec.Engine.Ethash.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
-	spec.Engine.Ethash.Params.DifficultyBoundDivisor = (*hexutil.Big)(params.DifficultyBoundDivisor)
-	spec.Engine.Ethash.Params.GasLimitBoundDivisor = (hexutil.Uint64)(params.GasLimitBoundDivisor)
-	spec.Engine.Ethash.Params.DurationLimit = (*hexutil.Big)(params.DurationLimit)
-	spec.Engine.Ethash.Params.BlockReward = (*hexutil.Big)(yochash.FrontierBlockReward)
-	spec.Engine.Ethash.Params.HomesteadTransition = genesis.Config.HomesteadBlock.Uint64()
-	spec.Engine.Ethash.Params.EIP150Transition = genesis.Config.EIP150Block.Uint64()
-	spec.Engine.Ethash.Params.EIP160Transition = genesis.Config.EIP155Block.Uint64()
-	spec.Engine.Ethash.Params.EIP161abcTransition = genesis.Config.EIP158Block.Uint64()
-	spec.Engine.Ethash.Params.EIP161dTransition = genesis.Config.EIP158Block.Uint64()
-	spec.Engine.Ethash.Params.EIP649Reward = (*hexutil.Big)(yochash.ByzantiumBlockReward)
-	spec.Engine.Ethash.Params.EIP100bTransition = genesis.Config.ByzantiumBlock.Uint64()
-	spec.Engine.Ethash.Params.EIP649Transition = genesis.Config.ByzantiumBlock.Uint64()
+	spec.Engine.Yochash.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
+	spec.Engine.Yochash.Params.DifficultyBoundDivisor = (*hexutil.Big)(params.DifficultyBoundDivisor)
+	spec.Engine.Yochash.Params.DurationLimit = (*hexutil.Big)(params.DurationLimit)
+	spec.Engine.Yochash.Params.BlockReward = (*hexutil.Big)(yochash.FrontierBlockReward)
+	spec.Engine.Yochash.Params.HomesteadTransition = genesis.Config.HomesteadBlock.Uint64()
+	spec.Engine.Yochash.Params.EIP150Transition = genesis.Config.EIP150Block.Uint64()
+	spec.Engine.Yochash.Params.EIP160Transition = genesis.Config.EIP155Block.Uint64()
+	spec.Engine.Yochash.Params.EIP161abcTransition = genesis.Config.EIP158Block.Uint64()
+	spec.Engine.Yochash.Params.EIP161dTransition = genesis.Config.EIP158Block.Uint64()
+	spec.Engine.Yochash.Params.EIP649Reward = (*hexutil.Big)(yochash.ByzantiumBlockReward)
+	spec.Engine.Yochash.Params.EIP100bTransition = genesis.Config.ByzantiumBlock.Uint64()
+	spec.Engine.Yochash.Params.EIP649Transition = genesis.Config.ByzantiumBlock.Uint64()
 
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
 	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
-	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainId.Uint64())
+	spec.Params.GasLimitBoundDivisor = (hexutil.Uint64)(params.GasLimitBoundDivisor)
+	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaxCodeSize = params.MaxCodeSize
 	spec.Params.EIP155Transition = genesis.Config.EIP155Block.Uint64()
 	spec.Params.EIP98Transition = math.MaxUint64
@@ -328,9 +328,9 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 	return spec, nil
 }
 
-// pyYOCGenesisSpec represents the genesis specification format used by the
-// Python YOC implementation.
-type pyYOCGenesisSpec struct {
+// pyYoCoinGenesisSpec represents the genesis specification format used by the
+// Python YoCoin implementation.
+type pyYoCoinGenesisSpec struct {
 	Nonce      hexutil.Bytes     `json:"nonce"`
 	Timestamp  hexutil.Uint64    `json:"timestamp"`
 	ExtraData  hexutil.Bytes     `json:"extraData"`
@@ -342,14 +342,14 @@ type pyYOCGenesisSpec struct {
 	ParentHash common.Hash       `json:"parentHash"`
 }
 
-// newPyYOCGenesisSpec converts a go-ethereum genesis block into a Parity specific
+// newPyYoCoinGenesisSpec converts a yocoin genesis block into a Parity specific
 // chain specification format.
-func newPyYOCGenesisSpec(network string, genesis *core.Genesis) (*pyYOCGenesisSpec, error) {
-	// Only ethash is currently supported between go-ethereum and pyethereum
-	if genesis.Config.Ethash == nil {
+func newPyYoCoinGenesisSpec(network string, genesis *core.Genesis) (*pyYoCoinGenesisSpec, error) {
+	// Only yochash is currently supported between yocoin and pyyocoin
+	if genesis.Config.Yochash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}
-	spec := &pyYOCGenesisSpec{
+	spec := &pyYoCoinGenesisSpec{
 		Timestamp:  (hexutil.Uint64)(genesis.Timestamp),
 		ExtraData:  genesis.ExtraData,
 		GasLimit:   (hexutil.Uint64)(genesis.GasLimit),

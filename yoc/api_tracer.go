@@ -11,22 +11,21 @@ import (
 	"io/ioutil"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/hexutil"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/tracers"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/internal/yocapi"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
 	"github.com/Yocoin15/Yocoin_Sources/trie"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/tracers"
 )
 
 const (
@@ -59,6 +58,7 @@ type txTraceResult struct {
 type blockTraceTask struct {
 	statedb *state.StateDB   // Intermediate state prepped for tracing
 	block   *types.Block     // Block to trace the transactions from
+	rootref common.Hash      // Trie root reference held for this task
 	results []*txTraceResult // Trace results procudes by the task
 }
 
@@ -77,59 +77,6 @@ type txTraceTask struct {
 	index   int            // Transaction offset in the block
 }
 
-// ephemeralDatabase is a memory wrapper around a proper database, which acts as
-// an ephemeral write layer. This construct is used by the chain tracer to write
-// state tries for intermediate blocks without serializing to disk, but at the
-// same time to allow disk fallback for reads that do no hit the memory layer.
-type ephemeralDatabase struct {
-	diskdb yocdb.Database     // Persistent disk database to fall back to with reads
-	memdb  *yocdb.MemDatabase // Ephemeral memory database for primary reads and writes
-}
-
-func (db *ephemeralDatabase) Put(key []byte, value []byte) error { return db.memdb.Put(key, value) }
-func (db *ephemeralDatabase) Delete(key []byte) error            { return errors.New("delete not supported") }
-func (db *ephemeralDatabase) Close()                             { db.memdb.Close() }
-func (db *ephemeralDatabase) NewBatch() yocdb.Batch {
-	return db.memdb.NewBatch()
-}
-func (db *ephemeralDatabase) Has(key []byte) (bool, error) {
-	if has, _ := db.memdb.Has(key); has {
-		return has, nil
-	}
-	return db.diskdb.Has(key)
-}
-func (db *ephemeralDatabase) Get(key []byte) ([]byte, error) {
-	if blob, _ := db.memdb.Get(key); blob != nil {
-		return blob, nil
-	}
-	return db.diskdb.Get(key)
-}
-
-// Prune does a state sync into a new memory write layer and replaces the old one.
-// This allows us to discard entries that are no longer referenced from the current
-// state.
-func (db *ephemeralDatabase) Prune(root common.Hash) {
-	// Pull the still relevant state data into memory
-	sync := state.NewStateSync(root, db.diskdb)
-	for sync.Pending() > 0 {
-		hash := sync.Missing(1)[0]
-
-		// Move the next trie node from the memory layer into a sync struct
-		node, err := db.memdb.Get(hash[:])
-		if err != nil {
-			panic(err) // memdb must have the data
-		}
-		if _, _, err := sync.Process([]trie.SyncResult{{Hash: hash, Data: node}}); err != nil {
-			panic(err) // it's not possible to fail processing a node
-		}
-	}
-	// Discard the old memory layer and write a new one
-	db.memdb, _ = yocdb.NewMemDatabaseWithCap(db.memdb.Len())
-	if _, err := sync.Commit(db); err != nil {
-		panic(err) // writing into a memdb cannot fail
-	}
-}
-
 // TraceChain returns the structured logs created during the execution of YVM
 // between two blocks (excluding start) and returns them as a JSON object.
 func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.BlockNumber, config *TraceConfig) (*rpc.Subscription, error) {
@@ -138,19 +85,19 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 
 	switch start {
 	case rpc.PendingBlockNumber:
-		from = api.eth.miner.PendingBlock()
+		from = api.yoc.miner.PendingBlock()
 	case rpc.LatestBlockNumber:
-		from = api.eth.blockchain.CurrentBlock()
+		from = api.yoc.blockchain.CurrentBlock()
 	default:
-		from = api.eth.blockchain.GetBlockByNumber(uint64(start))
+		from = api.yoc.blockchain.GetBlockByNumber(uint64(start))
 	}
 	switch end {
 	case rpc.PendingBlockNumber:
-		to = api.eth.miner.PendingBlock()
+		to = api.yoc.miner.PendingBlock()
 	case rpc.LatestBlockNumber:
-		to = api.eth.blockchain.CurrentBlock()
+		to = api.yoc.blockchain.CurrentBlock()
 	default:
-		to = api.eth.blockchain.GetBlockByNumber(uint64(end))
+		to = api.yoc.blockchain.GetBlockByNumber(uint64(end))
 	}
 	// Trace the chain if we've found all our blocks
 	if from == nil {
@@ -175,19 +122,15 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 
 	// Ensure we have a valid starting state before doing any work
 	origin := start.NumberU64()
+	database := state.NewDatabase(api.yoc.ChainDb())
 
-	memdb, _ := yocdb.NewMemDatabase()
-	db := &ephemeralDatabase{
-		diskdb: api.eth.ChainDb(),
-		memdb:  memdb,
-	}
 	if number := start.NumberU64(); number > 0 {
-		start = api.eth.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
+		start = api.yoc.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
 		if start == nil {
 			return nil, fmt.Errorf("parent block #%d not found", number-1)
 		}
 	}
-	statedb, err := state.New(start.Root(), state.NewDatabase(db))
+	statedb, err := state.New(start.Root(), database)
 	if err != nil {
 		// If the starting state is missing, allow some number of blocks to be reexecuted
 		reexec := defaultTraceReexec
@@ -196,11 +139,11 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 		}
 		// Find the most recent block that has the state available
 		for i := uint64(0); i < reexec; i++ {
-			start = api.eth.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
+			start = api.yoc.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
 			if start == nil {
 				break
 			}
-			if statedb, err = state.New(start.Root(), state.NewDatabase(db)); err == nil {
+			if statedb, err = state.New(start.Root(), database); err == nil {
 				break
 			}
 		}
@@ -238,15 +181,15 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer)
-					vmctx := core.NewYVMContext(msg, task.block.Header(), api.eth.blockchain, nil)
+					vmctx := core.NewYVMContext(msg, task.block.Header(), api.yoc.blockchain, nil)
 
 					res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 					if err != nil {
 						task.results[i] = &txTraceResult{Error: err.Error()}
-						log.Warn("Tracing failed", "err", err)
+						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
 						break
 					}
-					task.statedb.DeleteSuicides()
+					task.statedb.Finalise(true)
 					task.results[i] = &txTraceResult{Result: res}
 				}
 				// Stream the result back to the user or abort on teardown
@@ -260,7 +203,6 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 	}
 	// Start a goroutine to feed all the blocks into the tracers
 	begin := time.Now()
-	complete := start.NumberU64()
 
 	go func() {
 		var (
@@ -268,6 +210,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			number uint64
 			traced uint64
 			failed error
+			proot  common.Hash
 		)
 		// Ensure everything is properly cleaned up on any exit path
 		defer func() {
@@ -295,14 +238,15 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			// Print progress logs if long enough time elapsed
 			if time.Since(logged) > 8*time.Second {
 				if number > origin {
-					log.Info("Tracing chain segment", "start", origin, "end", end.NumberU64(), "current", number, "transactions", traced, "elapsed", time.Since(begin))
+					nodes, imgs := database.TrieDB().Size()
+					log.Info("Tracing chain segment", "start", origin, "end", end.NumberU64(), "current", number, "transactions", traced, "elapsed", time.Since(begin), "memory", nodes+imgs)
 				} else {
 					log.Info("Preparing state for chain trace", "block", number, "start", origin, "elapsed", time.Since(begin))
 				}
 				logged = time.Now()
 			}
 			// Retrieve the next block to trace
-			block := api.eth.blockchain.GetBlockByNumber(number)
+			block := api.yoc.blockchain.GetBlockByNumber(number)
 			if block == nil {
 				failed = fmt.Errorf("block #%d not found", number)
 				break
@@ -312,22 +256,20 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				txs := block.Transactions()
 
 				select {
-				case tasks <- &blockTraceTask{statedb: statedb.Copy(), block: block, results: make([]*txTraceResult, len(txs))}:
+				case tasks <- &blockTraceTask{statedb: statedb.Copy(), block: block, rootref: proot, results: make([]*txTraceResult, len(txs))}:
 				case <-notifier.Closed():
 					return
 				}
 				traced += uint64(len(txs))
-			} else {
-				atomic.StoreUint64(&complete, number)
 			}
 			// Generate the next state snapshot fast without tracing
-			_, _, _, err := api.eth.blockchain.Processor().Process(block, statedb, vm.Config{})
+			_, _, _, err := api.yoc.blockchain.Processor().Process(block, statedb, vm.Config{})
 			if err != nil {
 				failed = err
 				break
 			}
 			// Finalize the state so any modifications are written to the trie
-			root, err := statedb.CommitTo(db, true)
+			root, err := statedb.Commit(true)
 			if err != nil {
 				failed = err
 				break
@@ -336,26 +278,16 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				failed = err
 				break
 			}
-			// After every N blocks, prune the database to only retain relevant data
-			if (number-start.NumberU64())%4096 == 0 {
-				// Wait until currently pending trace jobs finish
-				for atomic.LoadUint64(&complete) != number {
-					select {
-					case <-time.After(100 * time.Millisecond):
-					case <-notifier.Closed():
-						return
-					}
-				}
-				// No more concurrent access at this point, prune the database
-				var (
-					nodes = db.memdb.Len()
-					start = time.Now()
-				)
-				db.Prune(root)
-				log.Info("Pruned tracer state entries", "deleted", nodes-db.memdb.Len(), "left", db.memdb.Len(), "elapsed", time.Since(start))
-
-				statedb, _ = state.New(root, state.NewDatabase(db))
+			// Reference the trie twice, once for us, once for the trancer
+			database.TrieDB().Reference(root, common.Hash{})
+			if number >= origin {
+				database.TrieDB().Reference(root, common.Hash{})
 			}
+			// Dereference all past tries we ourselves are done working with
+			database.TrieDB().Dereference(proot)
+			proot = root
+
+			// TODO(karalabe): Do we need the preimages? Won't they accumulate too much?
 		}
 	}()
 
@@ -374,12 +306,14 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			}
 			done[uint64(result.Block)] = result
 
+			// Dereference any paret tries held in memory by this task
+			database.TrieDB().Dereference(res.rootref)
+
 			// Stream completed traces to the user, aborting on the first error
 			for result, ok := done[next]; ok; result, ok = done[next] {
 				if len(result.Traces) > 0 || next == end.NumberU64() {
 					notifier.Notify(sub.ID, result)
 				}
-				atomic.StoreUint64(&complete, next)
 				delete(done, next)
 				next++
 			}
@@ -396,11 +330,11 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 
 	switch number {
 	case rpc.PendingBlockNumber:
-		block = api.eth.miner.PendingBlock()
+		block = api.yoc.miner.PendingBlock()
 	case rpc.LatestBlockNumber:
-		block = api.eth.blockchain.CurrentBlock()
+		block = api.yoc.blockchain.CurrentBlock()
 	default:
-		block = api.eth.blockchain.GetBlockByNumber(uint64(number))
+		block = api.yoc.blockchain.GetBlockByNumber(uint64(number))
 	}
 	// Trace the block if it was found
 	if block == nil {
@@ -412,7 +346,7 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 // TraceBlockByHash returns the structured logs created during the execution of
 // YVM and returns them as a JSON object.
 func (api *PrivateDebugAPI) TraceBlockByHash(ctx context.Context, hash common.Hash, config *TraceConfig) ([]*txTraceResult, error) {
-	block := api.eth.blockchain.GetBlockByHash(hash)
+	block := api.yoc.blockchain.GetBlockByHash(hash)
 	if block == nil {
 		return nil, fmt.Errorf("block #%x not found", hash)
 	}
@@ -444,10 +378,10 @@ func (api *PrivateDebugAPI) TraceBlockFromFile(ctx context.Context, file string,
 // per transaction, dependent on the requestd tracer.
 func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, config *TraceConfig) ([]*txTraceResult, error) {
 	// Create the parent state database
-	if err := api.eth.engine.VerifyHeader(api.eth.blockchain, block.Header(), true); err != nil {
+	if err := api.yoc.engine.VerifyHeader(api.yoc.blockchain, block.Header(), true); err != nil {
 		return nil, err
 	}
-	parent := api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
+	parent := api.yoc.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
 		return nil, fmt.Errorf("parent %x not found", block.ParentHash())
 	}
@@ -481,7 +415,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer)
-				vmctx := core.NewYVMContext(msg, block.Header(), api.eth.blockchain, nil)
+				vmctx := core.NewYVMContext(msg, block.Header(), api.yoc.blockchain, nil)
 
 				res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 				if err != nil {
@@ -500,7 +434,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer)
-		vmctx := core.NewYVMContext(msg, block.Header(), api.eth.blockchain, nil)
+		vmctx := core.NewYVMContext(msg, block.Header(), api.yoc.blockchain, nil)
 
 		vmenv := vm.NewYVM(vmctx, statedb, api.config, vm.Config{})
 		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
@@ -525,24 +459,20 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 // attempted to be reexecuted to generate the desired state.
 func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*state.StateDB, error) {
 	// If we have the state fully available, use that
-	statedb, err := api.eth.blockchain.StateAt(block.Root())
+	statedb, err := api.yoc.blockchain.StateAt(block.Root())
 	if err == nil {
 		return statedb, nil
 	}
 	// Otherwise try to reexec blocks until we find a state or reach our limit
 	origin := block.NumberU64()
+	database := state.NewDatabase(api.yoc.ChainDb())
 
-	memdb, _ := yocdb.NewMemDatabase()
-	db := &ephemeralDatabase{
-		diskdb: api.eth.ChainDb(),
-		memdb:  memdb,
-	}
 	for i := uint64(0); i < reexec; i++ {
-		block = api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
+		block = api.yoc.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 		if block == nil {
 			break
 		}
-		if statedb, err = state.New(block.Root(), state.NewDatabase(db)); err == nil {
+		if statedb, err = state.New(block.Root(), database); err == nil {
 			break
 		}
 	}
@@ -558,6 +488,7 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 	var (
 		start  = time.Now()
 		logged time.Time
+		proot  common.Hash
 	)
 	for block.NumberU64() < origin {
 		// Print progress logs if long enough time elapsed
@@ -566,34 +497,27 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 			logged = time.Now()
 		}
 		// Retrieve the next block to regenerate and process it
-		if block = api.eth.blockchain.GetBlockByNumber(block.NumberU64() + 1); block == nil {
+		if block = api.yoc.blockchain.GetBlockByNumber(block.NumberU64() + 1); block == nil {
 			return nil, fmt.Errorf("block #%d not found", block.NumberU64()+1)
 		}
-		_, _, _, err := api.eth.blockchain.Processor().Process(block, statedb, vm.Config{})
+		_, _, _, err := api.yoc.blockchain.Processor().Process(block, statedb, vm.Config{})
 		if err != nil {
 			return nil, err
 		}
 		// Finalize the state so any modifications are written to the trie
-		root, err := statedb.CommitTo(db, true)
+		root, err := statedb.Commit(true)
 		if err != nil {
 			return nil, err
 		}
 		if err := statedb.Reset(root); err != nil {
 			return nil, err
 		}
-		// After every N blocks, prune the database to only retain relevant data
-		if block.NumberU64()%4096 == 0 || block.NumberU64() == origin {
-			var (
-				nodes = db.memdb.Len()
-				begin = time.Now()
-			)
-			db.Prune(root)
-			log.Info("Pruned tracer state entries", "deleted", nodes-db.memdb.Len(), "left", db.memdb.Len(), "elapsed", time.Since(begin))
-
-			statedb, _ = state.New(root, state.NewDatabase(db))
-		}
+		database.TrieDB().Reference(root, common.Hash{})
+		database.TrieDB().Dereference(proot)
+		proot = root
 	}
-	log.Info("Historical state regenerated", "block", block.NumberU64(), "elapsed", time.Since(start))
+	nodes, imgs := database.TrieDB().Size()
+	log.Info("Historical state regenerated", "block", block.NumberU64(), "elapsed", time.Since(start), "nodes", nodes, "preimages", imgs)
 	return statedb, nil
 }
 
@@ -601,7 +525,7 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 // and returns them as a JSON object.
 func (api *PrivateDebugAPI) TraceTransaction(ctx context.Context, hash common.Hash, config *TraceConfig) (interface{}, error) {
 	// Retrieve the transaction and assemble its YVM context
-	tx, blockHash, _, index := core.GetTransaction(api.eth.ChainDb(), hash)
+	tx, blockHash, _, index := rawdb.ReadTransaction(api.yoc.ChainDb(), hash)
 	if tx == nil {
 		return nil, fmt.Errorf("transaction %x not found", hash)
 	}
@@ -681,11 +605,11 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 // computeTxEnv returns the execution environment of a certain transaction.
 func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, reexec uint64) (core.Message, vm.Context, *state.StateDB, error) {
 	// Create the parent state database
-	block := api.eth.blockchain.GetBlockByHash(blockHash)
+	block := api.yoc.blockchain.GetBlockByHash(blockHash)
 	if block == nil {
 		return nil, vm.Context{}, nil, fmt.Errorf("block %x not found", blockHash)
 	}
-	parent := api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
+	parent := api.yoc.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
 		return nil, vm.Context{}, nil, fmt.Errorf("parent %x not found", block.ParentHash())
 	}
@@ -699,7 +623,7 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := tx.AsMessage(signer)
-		context := core.NewYVMContext(msg, block.Header(), api.eth.blockchain, nil)
+		context := core.NewYVMContext(msg, block.Header(), api.yoc.blockchain, nil)
 		if idx == txIndex {
 			return msg, context, statedb, nil
 		}
@@ -708,7 +632,8 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("tx %x failed: %v", tx.Hash(), err)
 		}
-		statedb.DeleteSuicides()
+		// Ensure any modifications are committed to the state
+		statedb.Finalise(true)
 	}
 	return nil, vm.Context{}, nil, fmt.Errorf("tx index %d out of range for block %x", txIndex, blockHash)
 }

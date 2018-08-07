@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	ethereum "github.com/Yocoin15/Yocoin_Sources"
+	yocoin "github.com/Yocoin15/Yocoin_Sources"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
 )
@@ -38,7 +38,7 @@ func NewPublicDownloaderAPI(d *Downloader, m *event.TypeMux) *PublicDownloaderAP
 	return api
 }
 
-// eventLoop runs an loop until the event mux closes. It will install and uninstall new
+// eventLoop runs a loop until the event mux closes. It will install and uninstall new
 // sync subscriptions and broadcasts sync status updates to the installed sync subscriptions.
 func (api *PublicDownloaderAPI) eventLoop() {
 	var (
@@ -76,7 +76,7 @@ func (api *PublicDownloaderAPI) eventLoop() {
 	}
 }
 
-// Syncing provides information when this nodes starts synchronising with the YOC network and when it's finished.
+// Syncing provides information when this nodes starts synchronising with the YoCoin network and when it's finished.
 func (api *PublicDownloaderAPI) Syncing(ctx context.Context) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)
 	if !supported {
@@ -108,8 +108,8 @@ func (api *PublicDownloaderAPI) Syncing(ctx context.Context) (*rpc.Subscription,
 
 // SyncingResult provides information about the current synchronisation status for this node.
 type SyncingResult struct {
-	Syncing bool                  `json:"syncing"`
-	Status  ethereum.SyncProgress `json:"status"`
+	Syncing bool                `json:"syncing"`
+	Status  yocoin.SyncProgress `json:"status"`
 }
 
 // uninstallSyncSubscriptionRequest uninstalles a syncing subscription in the API event loop.

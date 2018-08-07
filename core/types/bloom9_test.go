@@ -41,7 +41,7 @@ func TestBloom(t *testing.T) {
 import (
 	"testing"
 
-	"github.com/Yocoin15/Yocoin_Sources/core/state"
+	"github.com/yocoin/go-yocoin/core/state"
 )
 
 func TestBloom9(t *testing.T) {

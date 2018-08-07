@@ -12,9 +12,9 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
 )
 
 func init() {
@@ -28,8 +28,12 @@ func TestStatusMsgErrors62(t *testing.T) { testStatusMsgErrors(t, 62) }
 func TestStatusMsgErrors63(t *testing.T) { testStatusMsgErrors(t, 63) }
 
 func testStatusMsgErrors(t *testing.T, protocol int) {
-	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
-	td, currentBlock, genesis := pm.blockchain.Status()
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
+	var (
+		genesis = pm.blockchain.Genesis()
+		head    = pm.blockchain.CurrentHeader()
+		td      = pm.blockchain.GetTd(head.Hash(), head.Number.Uint64())
+	)
 	defer pm.Stop()
 
 	tests := []struct {
@@ -42,16 +46,16 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 			wantError: errResp(ErrNoStatusMsg, "first msg has code 2 (!= 0)"),
 		},
 		{
-			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, td, currentBlock, genesis},
+			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, td, head.Hash(), genesis.Hash()},
 			wantError: errResp(ErrProtocolVersionMismatch, "10 (!= %d)", protocol),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), 999, td, currentBlock, genesis},
+			code: StatusMsg, data: statusData{uint32(protocol), 999, td, head.Hash(), genesis.Hash()},
 			wantError: errResp(ErrNetworkIdMismatch, "999 (!= 1)"),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, td, currentBlock, common.Hash{3}},
-			wantError: errResp(ErrGenesisBlockMismatch, "0300000000000000 (!= %x)", genesis[:8]),
+			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, td, head.Hash(), common.Hash{3}},
+			wantError: errResp(ErrGenesisBlockMismatch, "0300000000000000 (!= %x)", genesis.Hash().Bytes()[:8]),
 		},
 	}
 
@@ -81,7 +85,7 @@ func TestRecvTransactions63(t *testing.T) { testRecvTransactions(t, 63) }
 
 func testRecvTransactions(t *testing.T, protocol int) {
 	txAdded := make(chan []*types.Transaction)
-	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded)
 	pm.acceptTxs = 1 // mark synced to accept transactions
 	p, _ := newTestPeer("peer", protocol, pm, true)
 	defer pm.Stop()
@@ -99,7 +103,7 @@ func testRecvTransactions(t *testing.T, protocol int) {
 			t.Errorf("added wrong tx hash: got %v, want %v", added[0].Hash(), tx.Hash())
 		}
 	case <-time.After(2 * time.Second):
-		t.Errorf("no TxPreEvent received within 2 seconds")
+		t.Errorf("no NewTxsEvent received within 2 seconds")
 	}
 }
 
@@ -108,7 +112,7 @@ func TestSendTransactions62(t *testing.T) { testSendTransactions(t, 62) }
 func TestSendTransactions63(t *testing.T) { testSendTransactions(t, 63) }
 
 func testSendTransactions(t *testing.T, protocol int) {
-	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
 	defer pm.Stop()
 
 	// Fill the pool with big transactions.

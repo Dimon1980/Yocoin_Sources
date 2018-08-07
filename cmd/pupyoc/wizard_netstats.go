@@ -24,8 +24,7 @@ func (w *wizard) networkStats() {
 	}
 	// Clear out some previous configs to refill from current scan
 	w.conf.yocstats = ""
-	w.conf.bootFull = w.conf.bootFull[:0]
-	w.conf.bootLight = w.conf.bootLight[:0]
+	w.conf.bootnodes = w.conf.bootnodes[:0]
 
 	// Iterate over all the specified hosts and check their status
 	var pend sync.WaitGroup
@@ -63,8 +62,7 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 	var (
 		genesis   string
 		yocstats  string
-		bootFull  []string
-		bootLight []string
+		bootnodes []string
 	)
 	// Ensure a valid SSH connection to the remote server
 	logger := log.New("server", server)
@@ -93,7 +91,7 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 		stat.services["nginx"] = infos.Report()
 	}
 	logger.Debug("Checking for yocstats availability")
-	if infos, err := checkEthstats(client, w.network); err != nil {
+	if infos, err := checkYocstats(client, w.network); err != nil {
 		if err != ErrServiceUnknown {
 			stat.services["yocstats"] = map[string]string{"offline": err.Error()}
 		}
@@ -110,10 +108,7 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 		stat.services["bootnode"] = infos.Report()
 
 		genesis = string(infos.genesis)
-		bootFull = append(bootFull, infos.enodeFull)
-		if infos.enodeLight != "" {
-			bootLight = append(bootLight, infos.enodeLight)
-		}
+		bootnodes = append(bootnodes, infos.enode)
 	}
 	logger.Debug("Checking for sealnode availability")
 	if infos, err := checkNode(client, w.network, false); err != nil {
@@ -171,8 +166,7 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 	if yocstats != "" {
 		w.conf.yocstats = yocstats
 	}
-	w.conf.bootFull = append(w.conf.bootFull, bootFull...)
-	w.conf.bootLight = append(w.conf.bootLight, bootLight...)
+	w.conf.bootnodes = append(w.conf.bootnodes, bootnodes...)
 
 	return stat
 }
@@ -196,7 +190,7 @@ func (stats serverStats) render() {
 
 	table.SetHeader([]string{"Server", "Address", "Service", "Config", "Value"})
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetColWidth(100)
+	table.SetColWidth(40)
 
 	// Find the longest lines for all columns for the hacked separator
 	separator := make([]string, 5)
@@ -215,8 +209,10 @@ func (stats serverStats) render() {
 				if len(config) > len(separator[3]) {
 					separator[3] = strings.Repeat("-", len(config))
 				}
-				if len(value) > len(separator[4]) {
-					separator[4] = strings.Repeat("-", len(value))
+				for _, val := range strings.Split(value, "\n") {
+					if len(val) > len(separator[4]) {
+						separator[4] = strings.Repeat("-", len(val))
+					}
 				}
 			}
 		}
@@ -256,26 +252,20 @@ func (stats serverStats) render() {
 			sort.Strings(configs)
 
 			for k, config := range configs {
-				switch {
-				case j == 0 && k == 0:
-					table.Append([]string{server, stats[server].address, service, config, stats[server].services[service][config]})
-				case k == 0:
-					table.Append([]string{"", "", service, config, stats[server].services[service][config]})
-				default:
-					table.Append([]string{"", "", "", config, stats[server].services[service][config]})
+				for l, value := range strings.Split(stats[server].services[service][config], "\n") {
+					switch {
+					case j == 0 && k == 0 && l == 0:
+						table.Append([]string{server, stats[server].address, service, config, value})
+					case k == 0 && l == 0:
+						table.Append([]string{"", "", service, config, value})
+					case l == 0:
+						table.Append([]string{"", "", "", config, value})
+					default:
+						table.Append([]string{"", "", "", "", value})
+					}
 				}
 			}
 		}
 	}
 	table.Render()
-}
-
-// protips contains a collection of network infos to report pro-tips
-// based on.
-type protips struct {
-	genesis   string
-	network   int64
-	bootFull  []string
-	bootLight []string
-	yocstats  string
 }

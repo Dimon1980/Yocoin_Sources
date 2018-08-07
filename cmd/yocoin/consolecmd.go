@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/Yocoin15/Yocoin_Sources/cmd/utils"
 	"github.com/Yocoin15/Yocoin_Sources/console"
@@ -30,8 +31,7 @@ var (
 		Category: "CONSOLE COMMANDS",
 		Description: `
 The YoCoin console is an interactive shell for the JavaScript runtime environment
-which exposes a node admin interface as well as the Ðapp JavaScript API.
-See https://github.com/Yocoin15/Yocoin_Sources/wiki/Javascript-Console.`,
+which exposes a node admin interface as well as the Ðapp JavaScript API.`,
 	}
 
 	attachCommand = cli.Command{
@@ -42,9 +42,8 @@ See https://github.com/Yocoin15/Yocoin_Sources/wiki/Javascript-Console.`,
 		Flags:     append(consoleFlags, utils.DataDirFlag),
 		Category:  "CONSOLE COMMANDS",
 		Description: `
-The YoCoin console is an interactive shell for the JavaScript runtime environment
+The Geth console is an interactive shell for the JavaScript runtime environment
 which exposes a node admin interface as well as the Ðapp JavaScript API.
-See https://github.com/Yocoin15/Yocoin_Sources/wiki/Javascript-Console.
 This command allows to open a console on a running yocoin node.`,
 	}
 
@@ -57,7 +56,7 @@ This command allows to open a console on a running yocoin node.`,
 		Category:  "CONSOLE COMMANDS",
 		Description: `
 The JavaScript VM exposes a node admin interface as well as the Ðapp
-JavaScript API. See https://github.com/Yocoin15/Yocoin_Sources/wiki/Javascipt-Console`,
+JavaScript API.`,
 	}
 )
 
@@ -162,7 +161,7 @@ func dialRPC(endpoint string) (*rpc.Client, error) {
 	if endpoint == "" {
 		endpoint = node.DefaultIPCEndpoint(clientIdentifier)
 	} else if strings.HasPrefix(endpoint, "rpc:") || strings.HasPrefix(endpoint, "ipc:") {
-		// Backwards compatibility with geth < 1.5 which required
+		// Backwards compatibility with yocoin < 1.5 which required
 		// these prefixes.
 		endpoint = endpoint[4:]
 	}
@@ -204,7 +203,7 @@ func ephemeralConsole(ctx *cli.Context) error {
 	}
 	// Wait for pending callbacks, but stop for Ctrl-C.
 	abort := make(chan os.Signal, 1)
-	signal.Notify(abort, os.Interrupt)
+	signal.Notify(abort, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-abort

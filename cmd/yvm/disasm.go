@@ -16,7 +16,7 @@ import (
 var disasmCommand = cli.Command{
 	Action:    disasmCmd,
 	Name:      "disasm",
-	Usage:     "disassembles evm binary",
+	Usage:     "disassembles yvm binary",
 	ArgsUsage: "<file>",
 }
 

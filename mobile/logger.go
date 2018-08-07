@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-package geth
+package yocoin
 
 import (
 	"os"

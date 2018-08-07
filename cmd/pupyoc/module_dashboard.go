@@ -65,7 +65,7 @@ var dashboardContent = `
 						<div id="sidebar-menu" class="main_menu_side hidden-print main_menu">
 							<div class="menu_section">
 								<ul class="nav side-menu">
-									{{if .EthstatsPage}}<li id="stats_menu"><a onclick="load('#stats')"><i class="fa fa-tachometer"></i> Network Stats</a></li>{{end}}
+									{{if .YocstatsPage}}<li id="stats_menu"><a onclick="load('#stats')"><i class="fa fa-tachometer"></i> Network Stats</a></li>{{end}}
 									{{if .ExplorerPage}}<li id="explorer_menu"><a onclick="load('#explorer')"><i class="fa fa-database"></i> Block Explorer</a></li>{{end}}
 									{{if .WalletPage}}<li id="wallet_menu"><a onclick="load('#wallet')"><i class="fa fa-address-book-o"></i> Browser Wallet</a></li>{{end}}
 									{{if .FaucetPage}}<li id="faucet_menu"><a onclick="load('#faucet')"><i class="fa fa-bath"></i> Crypto Faucet</a></li>{{end}}
@@ -73,7 +73,7 @@ var dashboardContent = `
 										<ul id="connect_list" class="nav child_menu">
 											<li><a onclick="$('#connect_menu').removeClass('active'); $('#connect_list').toggle(); load('#geth')">Go YoCoin: Geth</a></li>
 											<li><a onclick="$('#connect_menu').removeClass('active'); $('#connect_list').toggle(); load('#mist')">Go YoCoin: Wallet & Mist</a></li>
-											<li><a onclick="$('#connect_menu').removeClass('active'); $('#connect_list').toggle(); load('#mobile')">Go YoCoin: Android & iOS</a></li>{{if .Ethash}}
+											<li><a onclick="$('#connect_menu').removeClass('active'); $('#connect_list').toggle(); load('#mobile')">Go YoCoin: Android & iOS</a></li>{{if .Yochash}}
 											<li><a onclick="$('#connect_menu').removeClass('active'); $('#connect_list').toggle(); load('#other')">Other YoCoin Clients</a></li>{{end}}
 										</ul>
 									</li>
@@ -104,10 +104,10 @@ var dashboardContent = `
 										<br/>
 										<p>To run an archive node, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and start Geth with:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
-											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=1024 --syncmode=full{{if .Ethstats}} --yocstats='{{.Ethstats}}'{{end}} --bootnodes={{.BootnodesFullFlat}}</pre>
+											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=1024 --syncmode=full{{if .Yocstats}} --yocstats='{{.Yocstats}}'{{end}} --bootnodes={{.BootnodesFlat}}</pre>
 										</p>
 										<br/>
-										<p>You can download Geth from <a href="https://geth.ethereum.org/downloads/" target="about:blank">https://geth.ethereum.org/downloads/</a>.</p>
+										<p>You can download Geth from <a href="https://geth.yocoin.org/downloads/" target="about:blank">https://geth.yocoin.org/downloads/</a>.</p>
 									</div>
 								</div>
 							</div>
@@ -123,10 +123,10 @@ var dashboardContent = `
 										<br/>
 										<p>To run a full node, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and start Geth with:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
-											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=512{{if .Ethstats}} --yocstats='{{.Ethstats}}'{{end}} --bootnodes={{.BootnodesFullFlat}}</pre>
+											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=512{{if .Yocstats}} --yocstats='{{.Yocstats}}'{{end}} --bootnodes={{.BootnodesFlat}}</pre>
 										</p>
 										<br/>
-										<p>You can download Geth from <a href="https://geth.ethereum.org/downloads/" target="about:blank">https://geth.ethereum.org/downloads/</a>.</p>
+										<p>You can download Geth from <a href="https://geth.yocoin.org/downloads/" target="about:blank">https://geth.yocoin.org/downloads/</a>.</p>
 									</div>
 								</div>
 							</div>
@@ -145,10 +145,10 @@ var dashboardContent = `
 										<br/>
 										<p>To run a light node, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and start Geth with:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
-											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --syncmode=light{{if .Ethstats}} --yocstats='{{.Ethstats}}'{{end}} --bootnodes={{.BootnodesLightFlat}}</pre>
+											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --syncmode=light{{if .Yocstats}} --yocstats='{{.Yocstats}}'{{end}} --bootnodes={{.BootnodesFlat}}</pre>
 										</p>
 										<br/>
-										<p>You can download Geth from <a href="https://geth.ethereum.org/downloads/" target="about:blank">https://geth.ethereum.org/downloads/</a>.</p>
+										<p>You can download Geth from <a href="https://geth.yocoin.org/downloads/" target="about:blank">https://geth.yocoin.org/downloads/</a>.</p>
 									</div>
 								</div>
 							</div>
@@ -164,10 +164,10 @@ var dashboardContent = `
 										<br/>
 										<p>To run an embedded node, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and start Geth with:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
-											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=16 --yochash.cachesinmem=1 --syncmode=light{{if .Ethstats}} --yocstats='{{.Ethstats}}'{{end}} --bootnodes={{.BootnodesLightFlat}}</pre>
+											<pre>geth --networkid={{.NetworkID}} --datadir=$HOME/.{{.Network}} --cache=16 --yochash.cachesinmem=1 --syncmode=light{{if .Yocstats}} --yocstats='{{.Yocstats}}'{{end}} --bootnodes={{.BootnodesFlat}}</pre>
 										</p>
 										<br/>
-										<p>You can download Geth from <a href="https://geth.ethereum.org/downloads/" target="about:blank">https://geth.ethereum.org/downloads/</a>.</p>
+										<p>You can download Geth from <a href="https://geth.yocoin.org/downloads/" target="about:blank">https://geth.yocoin.org/downloads/</a>.</p>
 									</div>
 								</div>
 							</div>
@@ -188,14 +188,14 @@ var dashboardContent = `
 										<div class="clearfix"></div>
 									</div>
 									<div class="x_content">
-										<p>The YoCoin Wallet is an <a href="https://electron.atom.io/" target="about:blank">Electron</a> based desktop application to manage your YOC accounts and funds. Beside the usual account life-cycle operations you would expect to perform, the wallet also provides a means to send transactions from your accounts and to interact with smart contracts deployed on the network.</p>
+										<p>The YoCoin Wallet is an <a href="https://electron.atom.io/" target="about:blank">Electron</a> based desktop application to manage your YoCoin accounts and funds. Beside the usual account life-cycle operations you would expect to perform, the wallet also provides a means to send transactions from your accounts and to interact with smart contracts deployed on the network.</p>
 										<p>Under the hood the wallet is backed by a go-ethereum full node, meaning that a mid range machine is assumed. Similarly, synchronization is based on <strong>fast-sync</strong>, which will download all blockchain data from the network and make it available to the wallet. Light nodes cannot currently fully back the wallet, but it's a target actively pursued.</p>
 										<br/>
 										<p>To connect with the YoCoin Wallet, you'll need to initialize your private network first via Geth as the wallet does not currently support calling Geth directly. To initialize your local chain, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and run:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
 										</p>
 										<p>With your local chain initialized, you can start the YoCoin Wallet:
-											<pre>ethereumwallet --rpc $HOME/.{{.Network}}/geth.ipc --node-networkid={{.NetworkID}} --node-datadir=$HOME/.{{.Network}}{{if .Ethstats}} --node-yocstats='{{.Ethstats}}'{{end}} --node-bootnodes={{.BootnodesFullFlat}}</pre>
+											<pre>ethereumwallet --rpc $HOME/.{{.Network}}/geth.ipc --node-networkid={{.NetworkID}} --node-datadir=$HOME/.{{.Network}}{{if .Yocstats}} --node-yocstats='{{.Yocstats}}'{{end}} --node-bootnodes={{.BootnodesFlat}}</pre>
 										<p>
 										<br/>
 										<p>You can download the YoCoin Wallet from <a href="https://github.com/ethereum/mist/releases" target="about:blank">https://github.com/ethereum/mist/releases</a>.</p>
@@ -209,14 +209,14 @@ var dashboardContent = `
 										<div class="clearfix"></div>
 									</div>
 									<div class="x_content">
-										<p>The Mist browser is an <a href="https://electron.atom.io/" target="about:blank">Electron</a> based desktop application to load and interact with YoCoin enabled third party web DApps. Beside all the functionality provided by the YoCoin Wallet, Mist is an extended web-browser where loaded pages have access to the YOC network via a web3.js provider, and may also interact with users' own accounts (given proper authorization and confirmation of course).</p>
+										<p>The Mist browser is an <a href="https://electron.atom.io/" target="about:blank">Electron</a> based desktop application to load and interact with YoCoin enabled third party web DApps. Beside all the functionality provided by the YoCoin Wallet, Mist is an extended web-browser where loaded pages have access to the YoCoin network via a web3.js provider, and may also interact with users' own accounts (given proper authorization and confirmation of course).</p>
 										<p>Under the hood the browser is backed by a go-ethereum full node, meaning that a mid range machine is assumed. Similarly, synchronization is based on <strong>fast-sync</strong>, which will download all blockchain data from the network and make it available to the wallet. Light nodes cannot currently fully back the wallet, but it's a target actively pursued.</p>
 										<br/>
 										<p>To connect with the Mist browser, you'll need to initialize your private network first via Geth as Mist does not currently support calling Geth directly. To initialize your local chain, download <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> and run:
 											<pre>geth --datadir=$HOME/.{{.Network}} init {{.GethGenesis}}</pre>
 										</p>
 										<p>With your local chain initialized, you can start Mist:
-											<pre>mist --rpc $HOME/.{{.Network}}/geth.ipc --node-networkid={{.NetworkID}} --node-datadir=$HOME/.{{.Network}}{{if .Ethstats}} --node-yocstats='{{.Ethstats}}'{{end}} --node-bootnodes={{.BootnodesFullFlat}}</pre>
+											<pre>mist --rpc $HOME/.{{.Network}}/geth.ipc --node-networkid={{.NetworkID}} --node-datadir=$HOME/.{{.Network}}{{if .Yocstats}} --node-yocstats='{{.Yocstats}}'{{end}} --node-bootnodes={{.BootnodesFlat}}</pre>
 										<p>
 										<br/>
 										<p>You can download the Mist browser from <a href="https://github.com/ethereum/mist/releases" target="about:blank">https://github.com/ethereum/mist/releases</a>.</p>
@@ -246,16 +246,16 @@ var dashboardContent = `
 										<p>The stable Android archives are distributed via Maven Central, and the develop snapshots via the Sonatype repositories. Before proceeding, please ensure you have a recent version configured in your Android project. You can find details in <a href="https://github.com/Yocoin15/Yocoin_Sources/wiki/Mobile:-Introduction#android-archive" target="about:blank">Mobile: Introduction &ndash; Android archive</a>.
 										<p>Before connecting to the YoCoin network, download the <a href="/{{.GethGenesis}}"><code>{{.GethGenesis}}</code></a> genesis json file and either store it in your Android project as a resource file you can access, or save it as a string in a variable. You're going to need to to initialize your client.</p>
 										<p>Inside your Java code you can now import the geth archive and connect to YoCoin:
-											<pre>import org.ethereum.geth.*;</pre>
+											<pre>import org.yocoin.geth.*;</pre>
 <pre>
-Enodes bootnodes = new Enodes();{{range .BootnodesLight}}
+Enodes bootnodes = new Enodes();{{range .Bootnodes}}
 bootnodes.append(new Enode("{{.}}"));{{end}}
 
 NodeConfig config = new NodeConfig();
 config.setBootstrapNodes(bootnodes);
 config.setYoCoinNetworkID({{.NetworkID}});
-config.setYOCGenesis(genesis);{{if .Ethstats}}
-config.setYoCoinNetStats("{{.Ethstats}}");{{end}}
+config.setYoCoinGenesis(genesis);{{if .Yocstats}}
+config.setYoCoinNetStats("{{.Yocstats}}");{{end}}
 
 Node node = new Node(getFilesDir() + "/.{{.Network}}", config);
 node.start();
@@ -281,14 +281,14 @@ node.start();
 <pre>
 var error: NSError?
 
-let bootnodes = GethNewEnodesEmpty(){{range .BootnodesLight}}
+let bootnodes = GethNewEnodesEmpty(){{range .Bootnodes}}
 bootnodes?.append(GethNewEnode("{{.}}", &error)){{end}}
 
 let config = GethNewNodeConfig()
 config?.setBootstrapNodes(bootnodes)
 config?.setYoCoinNetworkID({{.NetworkID}})
-config?.setYOCGenesis(genesis){{if .Ethstats}}
-config?.setYoCoinNetStats("{{.Ethstats}}"){{end}}
+config?.setYoCoinGenesis(genesis){{if .Yocstats}}
+config?.setYoCoinNetStats("{{.Yocstats}}"){{end}}
 
 let datadir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
 let node = GethNewNode(datadir + "/.{{.Network}}", config, &error);
@@ -299,7 +299,7 @@ try! node?.start();
 								</div>
 							</div>
 						</div>
-					</div>{{if .Ethash}}
+					</div>{{if .Yochash}}
 					<div id="other" hidden style="padding: 16px;">
 						<div class="page-title">
 							<div class="title_left">
@@ -406,7 +406,7 @@ try! node?.start();
 										<p>Puppeth is a tool to aid you in creating a new YoCoin network down to the genesis block, bootnodes, signers, yocstats server, crypto faucet, wallet browsers, block explorer, dashboard and more; without the hassle that it would normally entail to manually configure all these services one by one.</p>
 										<p>Puppeth uses ssh to dial in to remote servers, and builds its network components out of docker containers using docker-compose. The user is guided through the process via a command line wizard that does the heavy lifting and topology configuration automatically behind the scenes.</p>
 										<br/>
-										<p>Puppeth is distributed as part of the <a href="https://geth.ethereum.org/downloads/" target="about:blank">Geth &amp; Tools</a> bundles, but can also be installed separately via:<pre>go get github.com/Yocoin15/Yocoin_Sources/cmd/puppeth</pre></p>
+										<p>Puppeth is distributed as part of the <a href="https://geth.yocoin.org/downloads/" target="about:blank">Geth &amp; Tools</a> bundles, but can also be installed separately via:<pre>go get github.com/Yocoin15/Yocoin_Sources/cmd/puppeth</pre></p>
 										<br/>
 										<p><em>Copyright 2017. The go-ethereum Authors.</em></p>
 									</div>
@@ -443,7 +443,7 @@ try! node?.start();
 				var url = hash;
 				switch (hash) {
 					case "#stats":
-						url = "//{{.EthstatsPage}}";
+						url = "//{{.YocstatsPage}}";
 						break;
 					case "#explorer":
 						url = "//{{.ExplorerPage}}";
@@ -538,7 +538,7 @@ services:
     ports:
       - "{{.Port}}:80"{{end}}
     environment:
-      - ETHSTATS_PAGE={{.EthstatsPage}}
+      - ETHSTATS_PAGE={{.YocstatsPage}}
       - EXPLORER_PAGE={{.ExplorerPage}}
       - WALLET_PAGE={{.WalletPage}}
       - FAUCET_PAGE={{.FaucetPage}}{{if .VHost}}
@@ -570,7 +570,7 @@ func deployDashboard(client *sshClient, network string, conf *config, config *da
 		"Network":      network,
 		"Port":         config.port,
 		"VHost":        config.host,
-		"EthstatsPage": config.yocstats,
+		"YocstatsPage": config.yocstats,
 		"ExplorerPage": config.explorer,
 		"WalletPage":   config.wallet,
 		"FaucetPage":   config.faucet,
@@ -582,53 +582,52 @@ func deployDashboard(client *sshClient, network string, conf *config, config *da
 		statsLogin = ""
 	}
 	indexfile := new(bytes.Buffer)
-	bootCpp := make([]string, len(conf.bootFull))
-	for i, boot := range conf.bootFull {
+	bootCpp := make([]string, len(conf.bootnodes))
+	for i, boot := range conf.bootnodes {
 		bootCpp[i] = "required:" + strings.TrimPrefix(boot, "enode://")
 	}
-	bootHarmony := make([]string, len(conf.bootFull))
-	for i, boot := range conf.bootFull {
+	bootHarmony := make([]string, len(conf.bootnodes))
+	for i, boot := range conf.bootnodes {
 		bootHarmony[i] = fmt.Sprintf("-Dpeer.active.%d.url=%s", i, boot)
 	}
-	bootPython := make([]string, len(conf.bootFull))
-	for i, boot := range conf.bootFull {
+	bootPython := make([]string, len(conf.bootnodes))
+	for i, boot := range conf.bootnodes {
 		bootPython[i] = "'" + boot + "'"
 	}
 	template.Must(template.New("").Parse(dashboardContent)).Execute(indexfile, map[string]interface{}{
-		"Network":            network,
-		"NetworkID":          conf.Genesis.Config.ChainId,
-		"NetworkTitle":       strings.Title(network),
-		"EthstatsPage":       config.yocstats,
-		"ExplorerPage":       config.explorer,
-		"WalletPage":         config.wallet,
-		"FaucetPage":         config.faucet,
-		"GethGenesis":        network + ".json",
-		"BootnodesFull":      conf.bootFull,
-		"BootnodesLight":     conf.bootLight,
-		"BootnodesFullFlat":  strings.Join(conf.bootFull, ","),
-		"BootnodesLightFlat": strings.Join(conf.bootLight, ","),
-		"Ethstats":           statsLogin,
-		"Ethash":             conf.Genesis.Config.Ethash != nil,
-		"CppGenesis":         network + "-cpp.json",
-		"CppBootnodes":       strings.Join(bootCpp, " "),
-		"HarmonyGenesis":     network + "-harmony.json",
-		"HarmonyBootnodes":   strings.Join(bootHarmony, " "),
-		"ParityGenesis":      network + "-parity.json",
-		"PythonGenesis":      network + "-python.json",
-		"PythonBootnodes":    strings.Join(bootPython, ","),
-		"Homestead":          conf.Genesis.Config.HomesteadBlock,
-		"Tangerine":          conf.Genesis.Config.EIP150Block,
-		"Spurious":           conf.Genesis.Config.EIP155Block,
-		"Byzantium":          conf.Genesis.Config.ByzantiumBlock,
+		"Network":          network,
+		"NetworkID":        conf.Genesis.Config.ChainID,
+		"NetworkTitle":     strings.Title(network),
+		"YocstatsPage":     config.yocstats,
+		"ExplorerPage":     config.explorer,
+		"WalletPage":       config.wallet,
+		"FaucetPage":       config.faucet,
+		"GethGenesis":      network + ".json",
+		"Bootnodes":        conf.bootnodes,
+		"BootnodesFlat":    strings.Join(conf.bootnodes, ","),
+		"Yocstats":         statsLogin,
+		"Yochash":          conf.Genesis.Config.Yochash != nil,
+		"CppGenesis":       network + "-cpp.json",
+		"CppBootnodes":     strings.Join(bootCpp, " "),
+		"HarmonyGenesis":   network + "-harmony.json",
+		"HarmonyBootnodes": strings.Join(bootHarmony, " "),
+		"ParityGenesis":    network + "-parity.json",
+		"PythonGenesis":    network + "-python.json",
+		"PythonBootnodes":  strings.Join(bootPython, ","),
+		"Homestead":        conf.Genesis.Config.HomesteadBlock,
+		"Tangerine":        conf.Genesis.Config.EIP150Block,
+		"Spurious":         conf.Genesis.Config.EIP155Block,
+		"Byzantium":        conf.Genesis.Config.ByzantiumBlock,
+		"Constantinople":   conf.Genesis.Config.ConstantinopleBlock,
 	})
 	files[filepath.Join(workdir, "index.html")] = indexfile.Bytes()
 
-	// Marshal the genesis spec files for go-ethereum and all the other clients
+	// Marshal the genesis spec files for yocoin and all the other clients
 	genesis, _ := conf.Genesis.MarshalJSON()
 	files[filepath.Join(workdir, network+".json")] = genesis
 
-	if conf.Genesis.Config.Ethash != nil {
-		cppSpec, err := newCppYOCGenesisSpec(network, conf.Genesis)
+	if conf.Genesis.Config.Yochash != nil {
+		cppSpec, err := newCppYoCoinGenesisSpec(network, conf.Genesis)
 		if err != nil {
 			return nil, err
 		}
@@ -638,14 +637,14 @@ func deployDashboard(client *sshClient, network string, conf *config, config *da
 		harmonySpecJSON, _ := conf.Genesis.MarshalJSON()
 		files[filepath.Join(workdir, network+"-harmony.json")] = harmonySpecJSON
 
-		paritySpec, err := newParityChainSpec(network, conf.Genesis, conf.bootFull)
+		paritySpec, err := newParityChainSpec(network, conf.Genesis, conf.bootnodes)
 		if err != nil {
 			return nil, err
 		}
 		paritySpecJSON, _ := json.Marshal(paritySpec)
 		files[filepath.Join(workdir, network+"-parity.json")] = paritySpecJSON
 
-		pyethSpec, err := newPyYOCGenesisSpec(network, conf.Genesis)
+		pyethSpec, err := newPyYoCoinGenesisSpec(network, conf.Genesis)
 		if err != nil {
 			return nil, err
 		}
@@ -666,12 +665,12 @@ func deployDashboard(client *sshClient, network string, conf *config, config *da
 
 	// Build and deploy the dashboard service
 	if nocache {
-		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate", workdir, network, network))
+		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate --timeout 60", workdir, network, network))
 	}
-	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate", workdir, network))
+	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate --timeout 60", workdir, network))
 }
 
-// dashboardInfos is returned from an dashboard status check to allow reporting
+// dashboardInfos is returned from a dashboard status check to allow reporting
 // various configuration parameters.
 type dashboardInfos struct {
 	host    string
@@ -690,7 +689,7 @@ func (info *dashboardInfos) Report() map[string]string {
 	return map[string]string{
 		"Website address":       info.host,
 		"Website listener port": strconv.Itoa(info.port),
-		"Ethstats service":      info.yocstats,
+		"Yocstats service":      info.yocstats,
 		"Explorer service":      info.explorer,
 		"Wallet service":        info.wallet,
 		"Faucet service":        info.faucet,

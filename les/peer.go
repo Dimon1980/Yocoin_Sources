@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Package les implements the Light YOC Subprotocol.
+// Package les implements the Light YoCoin Subprotocol.
 package les
 
 import (
@@ -15,11 +15,11 @@ import (
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
 	"github.com/Yocoin15/Yocoin_Sources/les/flowcontrol"
 	"github.com/Yocoin15/Yocoin_Sources/light"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
 )
 
 var (
@@ -89,8 +89,8 @@ func (p *peer) queueSend(f func()) {
 }
 
 // Info gathers and returns a collection of metadata known about a peer.
-func (p *peer) Info() * yoc.PeerInfo {
-	return & yoc.PeerInfo{
+func (p *peer) Info() *yoc.PeerInfo {
+	return &yoc.PeerInfo{
 		Version:    p.version,
 		Difficulty: p.Td(),
 		Head:       fmt.Sprintf("%x", p.Head()),
@@ -268,7 +268,6 @@ func (p *peer) RequestProofs(reqID, cost uint64, reqs []ProofReq) error {
 	default:
 		panic(nil)
 	}
-
 }
 
 // RequestHelperTrieProofs fetches a batch of HelperTrie merkle proofs from a remote node.
@@ -278,12 +277,12 @@ func (p *peer) RequestHelperTrieProofs(reqID, cost uint64, reqs []HelperTrieReq)
 	case lpv1:
 		reqsV1 := make([]ChtReq, len(reqs))
 		for i, req := range reqs {
-			if req.HelperTrieType != htCanonical || req.AuxReq != auxHeader || len(req.Key) != 8 {
+			if req.Type != htCanonical || req.AuxReq != auxHeader || len(req.Key) != 8 {
 				return fmt.Errorf("Request invalid in LES/1 mode")
 			}
 			blockNum := binary.BigEndian.Uint64(req.Key)
 			// convert HelperTrie request to old CHT request
-			reqsV1[i] = ChtReq{ChtNum: (req.TrieIdx + 1) * (light.ChtFrequency / light.ChtV1Frequency), BlockNum: blockNum, FromLevel: req.FromLevel}
+			reqsV1[i] = ChtReq{ChtNum: (req.TrieIdx + 1) * (light.CHTFrequencyClient / light.CHTFrequencyServer), BlockNum: blockNum, FromLevel: req.FromLevel}
 		}
 		return sendRequest(p.rw, GetHeaderProofsMsg, reqID, cost, reqsV1)
 	case lpv2:
@@ -498,7 +497,7 @@ type peerSetNotify interface {
 }
 
 // peerSet represents the collection of active peers currently participating in
-// the Light YOC sub-protocol.
+// the Light YoCoin sub-protocol.
 type peerSet struct {
 	peers      map[string]*peer
 	lock       sync.RWMutex
@@ -533,9 +532,11 @@ func (ps *peerSet) notify(n peerSetNotify) {
 func (ps *peerSet) Register(p *peer) error {
 	ps.lock.Lock()
 	if ps.closed {
+		ps.lock.Unlock()
 		return errClosed
 	}
 	if _, ok := ps.peers[p.id]; ok {
+		ps.lock.Unlock()
 		return errAlreadyRegistered
 	}
 	ps.peers[p.id] = p

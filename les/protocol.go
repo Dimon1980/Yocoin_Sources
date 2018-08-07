@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Package les implements the Light YOC Subprotocol.
+// Package les implements the Light YoCoin Subprotocol.
 package les
 
 import (
@@ -15,6 +15,7 @@ import (
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
 	"github.com/Yocoin15/Yocoin_Sources/crypto/secp256k1"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
@@ -147,9 +148,8 @@ func (a *announceData) checkSignature(pubKey *ecdsa.PublicKey) error {
 	pbytes := elliptic.Marshal(pubKey.Curve, pubKey.X, pubKey.Y)
 	if bytes.Equal(pbytes, recPubkey) {
 		return nil
-	} else {
-		return errors.New("Wrong signature")
 	}
+	return errors.New("Wrong signature")
 }
 
 type blockInfo struct {
@@ -211,6 +211,6 @@ type proofsData [][]rlp.RawValue
 
 type txStatus struct {
 	Status core.TxStatus
-	Lookup *core.TxLookupEntry
-	Error  error
+	Lookup *rawdb.TxLookupEntry `rlp:"nil"`
+	Error  string
 }

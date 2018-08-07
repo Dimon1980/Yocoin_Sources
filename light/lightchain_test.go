@@ -11,9 +11,10 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // So we can deterministically seed different blockchains
@@ -38,7 +39,7 @@ func makeHeaderChain(parent *types.Header, n int, db yocdb.Database, seed int) [
 // chain. Depending on the full flag, if creates either a full block chain or a
 // header only chain.
 func newCanonical(n int) (yocdb.Database, *LightChain, error) {
-	db, _ := yocdb.NewMemDatabase()
+	db := yocdb.NewMemDatabase()
 	gspec := core.Genesis{Config: params.TestChainConfig}
 	genesis := gspec.MustCommit(db)
 	blockchain, _ := NewLightChain(&dummyOdr{db: db}, gspec.Config, yochash.NewFaker())
@@ -55,7 +56,7 @@ func newCanonical(n int) (yocdb.Database, *LightChain, error) {
 
 // newTestLightChain creates a LightChain that doesn't validate anything.
 func newTestLightChain() *LightChain {
-	db, _ := yocdb.NewMemDatabase()
+	db := yocdb.NewMemDatabase()
 	gspec := &core.Genesis{
 		Difficulty: big.NewInt(1),
 		Config:     params.TestChainConfig,
@@ -109,8 +110,8 @@ func testHeaderChainImport(chain []*types.Header, lightchain *LightChain) error 
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
 		lightchain.mu.Lock()
-		core.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), new(big.Int).Add(header.Difficulty, lightchain.GetTdByHash(header.ParentHash)))
-		core.WriteHeader(lightchain.chainDb, header)
+		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), new(big.Int).Add(header.Difficulty, lightchain.GetTdByHash(header.ParentHash)))
+		rawdb.WriteHeader(lightchain.chainDb, header)
 		lightchain.mu.Unlock()
 	}
 	return nil
@@ -312,7 +313,7 @@ func TestBadHeaderHashes(t *testing.T) {
 func TestReorgBadHeaderHashes(t *testing.T) {
 	bc := newTestLightChain()
 
-	// Create a chain, import and ban aferwards
+	// Create a chain, import and ban afterwards
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 3, 4}, 10)
 
 	if _, err := bc.InsertHeaderChain(headers, 1); err != nil {

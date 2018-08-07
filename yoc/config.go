@@ -9,29 +9,32 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/hexutil"
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
 	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
-	"github.com/Yocoin15/Yocoin_Sources/params"
 )
 
-// DefaultConfig contains default settings for use on the YOC main net.
+// DefaultConfig contains default settings for use on the YoCoin main net.
 var DefaultConfig = Config{
 	SyncMode: downloader.FastSync,
-	Ethash: yochash.Config{
-		CacheDir:       "yohash",
+	Yochash: yochash.Config{
+		CacheDir:       "yochash",
 		CachesInMem:    2,
 		CachesOnDisk:   3,
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	},
 	NetworkId:     13,
-	LightPeers:    20,
-	DatabaseCache: 128,
+	LightPeers:    100,
+	DatabaseCache: 768,
+	TrieCache:     256,
+	TrieTimeout:   60 * time.Minute,
 	GasPrice:      big.NewInt(18 * params.Shannon),
 
 	TxPool: core.DefaultTxPoolConfig,
@@ -49,9 +52,9 @@ func init() {
 		}
 	}
 	if runtime.GOOS == "windows" {
-		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "AppData", "Yohash")
+		DefaultConfig.Yochash.DatasetDir = filepath.Join(home, "AppData", "Yochash")
 	} else {
-		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, ".yohash")
+		DefaultConfig.Yochash.DatasetDir = filepath.Join(home, ".yochash")
 	}
 }
 
@@ -59,12 +62,13 @@ func init() {
 
 type Config struct {
 	// The genesis block, which is inserted if the database is empty.
-	// If nil, the YOC main net block is used.
+	// If nil, the YoCoin main net block is used.
 	Genesis *core.Genesis `toml:",omitempty"`
 
 	// Protocol options
 	NetworkId uint64 // Network ID to use for selecting peers to connect to
 	SyncMode  downloader.SyncMode
+	NoPruning bool
 
 	// Light client options
 	LightServ  int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
@@ -74,15 +78,17 @@ type Config struct {
 	SkipBcVersionCheck bool `toml:"-"`
 	DatabaseHandles    int  `toml:"-"`
 	DatabaseCache      int
+	TrieCache          int
+	TrieTimeout        time.Duration
 
 	// Mining-related options
-	Etherbase    common.Address `toml:",omitempty"`
+	YOCbase      common.Address `toml:",omitempty"`
 	MinerThreads int            `toml:",omitempty"`
 	ExtraData    []byte         `toml:",omitempty"`
 	GasPrice     *big.Int
 
-	// Ethash options
-	Ethash yochash.Config
+	// Yochash options
+	Yochash yochash.Config
 
 	// Transaction pool options
 	TxPool core.TxPoolConfig

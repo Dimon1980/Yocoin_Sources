@@ -5,13 +5,11 @@ package yochash
 
 import (
 	"bytes"
-	"strings"
 	"errors"
 	"fmt"
 	"math/big"
 	"runtime"
 	"time"
-	"io/ioutil"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/math"
@@ -20,10 +18,10 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/params"
-	set "gopkg.in/fatih/set.v0"
+	mapset "github.com/deckarep/golang-set"
 )
 
-// Ethash proof-of-work protocol constants.
+// Yochash proof-of-work protocol constants.
 var (
 	FrontierBlockReward    *big.Int = big.NewInt(5e+18) // Block reward in wei for successfully mining a block
 	ByzantiumBlockReward   *big.Int = big.NewInt(3e+18) // Block reward in wei for successfully mining a block upward from Byzantium
@@ -42,7 +40,6 @@ var (
 	errDuplicateUncle    = errors.New("duplicate uncle")
 	errUncleIsAncestor   = errors.New("uncle is ancestor")
 	errDanglingUncle     = errors.New("uncle's parent is not ancestor")
-	errNonceOutOfRange   = errors.New("nonce out of range")
 	errInvalidDifficulty = errors.New("non-positive difficulty")
 	errInvalidMixDigest  = errors.New("invalid mix digest")
 	errInvalidPoW        = errors.New("invalid proof-of-work")
@@ -50,13 +47,13 @@ var (
 
 // Author implements consensus.Engine, returning the header's coinbase as the
 // proof-of-work verified author of the block.
-func (yochash *Ethash) Author(header *types.Header) (common.Address, error) {
+func (yochash *Yochash) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules of the
-// stock YOC ethash engine.
-func (yochash *Ethash) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+// stock YoCoin yochash engine.
+func (yochash *Yochash) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	// If we're running a full engine faking, accept any input as valid
 	if yochash.config.PowMode == ModeFullFake {
 		return nil
@@ -77,7 +74,7 @@ func (yochash *Ethash) VerifyHeader(chain consensus.ChainReader, header *types.H
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 // concurrently. The method returns a quit channel to abort the operations and
 // a results channel to retrieve the async verifications.
-func (yochash *Ethash) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (yochash *Yochash) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	// If we're running a full engine faking, accept any input as valid
 	if yochash.config.PowMode == ModeFullFake || len(headers) == 0 {
 		abort, results := make(chan struct{}), make(chan error, len(headers))
@@ -139,7 +136,7 @@ func (yochash *Ethash) VerifyHeaders(chain consensus.ChainReader, headers []*typ
 	return abort, errorsOut
 }
 
-func (yochash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []*types.Header, seals []bool, index int) error {
+func (yochash *Yochash) verifyHeaderWorker(chain consensus.ChainReader, headers []*types.Header, seals []bool, index int) error {
 	var parent *types.Header
 	if index == 0 {
 		parent = chain.GetHeader(headers[0].ParentHash, headers[0].Number.Uint64()-1)
@@ -156,8 +153,8 @@ func (yochash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers [
 }
 
 // VerifyUncles verifies that the given block's uncles conform to the consensus
-// rules of the stock YOC ethash engine.
-func (yochash *Ethash) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+// rules of the stock YoCoin yochash engine.
+func (yochash *Yochash) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	// If we're running a full engine faking, accept any input as valid
 	if yochash.config.PowMode == ModeFullFake {
 		return nil
@@ -167,7 +164,7 @@ func (yochash *Ethash) VerifyUncles(chain consensus.ChainReader, block *types.Bl
 		return errTooManyUncles
 	}
 	// Gather the set of past uncles and ancestors
-	uncles, ancestors := set.New(), make(map[common.Hash]*types.Header)
+	uncles, ancestors := mapset.NewSet(), make(map[common.Hash]*types.Header)
 
 	number, parent := block.NumberU64()-1, block.ParentHash()
 	for i := 0; i < 7; i++ {
@@ -188,7 +185,7 @@ func (yochash *Ethash) VerifyUncles(chain consensus.ChainReader, block *types.Bl
 	for _, uncle := range block.Uncles() {
 		// Make sure every uncle is rewarded only once
 		hash := uncle.Hash()
-		if uncles.Has(hash) {
+		if uncles.Contains(hash) {
 			return errDuplicateUncle
 		}
 		uncles.Add(hash)
@@ -208,9 +205,9 @@ func (yochash *Ethash) VerifyUncles(chain consensus.ChainReader, block *types.Bl
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules of the
-// stock YOC ethash engine.
+// stock YoCoin yochash engine.
 // See YP section 4.3.4. "Block Header Validity"
-func (yochash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent *types.Header, uncle bool, seal bool) error {
+func (yochash *Yochash) verifyHeader(chain consensus.ChainReader, header, parent *types.Header, uncle bool, seal bool) error {
 	// Ensure that the header's extra-data section is of a reasonable size
 	if uint64(len(header.Extra)) > params.MaximumExtraDataSize {
 		return fmt.Errorf("extra-data too long: %d > %d", len(header.Extra), params.MaximumExtraDataSize)
@@ -277,7 +274,7 @@ func (yochash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns
 // the difficulty that a new block should have when created at time
 // given the parent block's time and difficulty.
-func (yochash *Ethash) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
+func (yochash *Yochash) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
 	return CalcDifficulty(chain.Config(), time, parent)
 }
 
@@ -311,7 +308,7 @@ var (
 // the difficulty that a new block should have when created at time given the
 // parent block's time and difficulty. The calculation uses the Byzantium rules.
 func calcDifficultyByzantium(time uint64, parent *types.Header) *big.Int {
-	// https://github.com/ethereum/EIPs/issues/100.
+	// https://github.com/yocoin/EIPs/issues/100.
 	// algorithm:
 	// diff = (parent_diff +
 	//         (parent_diff / 2048 * max((2 if len(parent.uncles) else 1) - ((timestamp - parent.timestamp) // 9), -99))
@@ -345,9 +342,9 @@ func calcDifficultyByzantium(time uint64, parent *types.Header) *big.Int {
 	if x.Cmp(params.MinimumDifficulty) < 0 {
 		x.Set(params.MinimumDifficulty)
 	}
-	// calculate a fake block numer for the ice-age delay:
-	//   https://github.com/ethereum/EIPs/pull/669
-	//   fake_block_number = min(0, block.number - 3_000_000
+	// calculate a fake block number for the ice-age delay:
+	// https://github.com/yocoin/EIPs/pull/669
+	// fake_block_number = max(0, block.number - 3_000_000)
 	fakeBlockNumber := new(big.Int)
 	if parent.Number.Cmp(big2999999) >= 0 {
 		fakeBlockNumber = fakeBlockNumber.Sub(parent.Number, big2999999) // Note, parent is 1 less than the actual block number
@@ -370,7 +367,7 @@ func calcDifficultyByzantium(time uint64, parent *types.Header) *big.Int {
 // the difficulty that a new block should have when created at time given the
 // parent block's time and difficulty. The calculation uses the Homestead rules.
 func calcDifficultyHomestead(time uint64, parent *types.Header) *big.Int {
-	// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2.md
+	// https://github.com/yocoin/EIPs/blob/master/EIPS/eip-2.md
 	// algorithm:
 	// diff = (parent_diff +
 	//         (parent_diff / 2048 * max(1 - (block_timestamp - parent_timestamp) // 10, -99))
@@ -450,7 +447,7 @@ func calcDifficultyFrontier(time uint64, parent *types.Header) *big.Int {
 
 // VerifySeal implements consensus.Engine, checking whether the given block satisfies
 // the PoW difficulty requirements.
-func (yochash *Ethash) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (yochash *Yochash) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
 	// If we're running a fake PoW, accept any seal as valid
 	if yochash.config.PowMode == ModeFake || yochash.config.PowMode == ModeFullFake {
 		time.Sleep(yochash.fakeDelay)
@@ -463,18 +460,13 @@ func (yochash *Ethash) VerifySeal(chain consensus.ChainReader, header *types.Hea
 	if yochash.shared != nil {
 		return yochash.shared.VerifySeal(chain, header)
 	}
-	// Sanity check that the block number is below the lookup table size (60M blocks)
-	number := header.Number.Uint64()
-	if number/epochLength >= maxEpoch {
-		// Go < 1.7 cannot calculate new cache/dataset sizes (no fast prime check)
-		return errNonceOutOfRange
-	}
 	// Ensure that we have a valid difficulty for the block
 	if header.Difficulty.Sign() <= 0 {
 		return errInvalidDifficulty
 	}
-
 	// Recompute the digest and PoW value and verify against the header
+	number := header.Number.Uint64()
+
 	cache := yochash.cache(number)
 	size := datasetSize(number)
 	if yochash.config.PowMode == ModeTest {
@@ -496,8 +488,8 @@ func (yochash *Ethash) VerifySeal(chain consensus.ChainReader, header *types.Hea
 }
 
 // Prepare implements consensus.Engine, initializing the difficulty field of a
-// header to conform to the ethash protocol. The changes are done inline.
-func (yochash *Ethash) Prepare(chain consensus.ChainReader, header *types.Header) error {
+// header to conform to the yochash protocol. The changes are done inline.
+func (yochash *Yochash) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -508,7 +500,7 @@ func (yochash *Ethash) Prepare(chain consensus.ChainReader, header *types.Header
 
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards,
 // setting the final state and assembling the block.
-func (yochash *Ethash) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (yochash *Yochash) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	accumulateRewards(chain.Config(), state, header, uncles)
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -519,13 +511,8 @@ func (yochash *Ethash) Finalize(chain consensus.ChainReader, header *types.Heade
 
 // Some weird constants to avoid constant memory allocs for them.
 var (
-	big0  = big.NewInt(0)
 	big8  = big.NewInt(8)
 	big32 = big.NewInt(32)
-)
-var (
-	emissionValue = big.NewInt(0)
-	emissionRate = big.NewInt(1000)
 )
 
 // AccumulateRewards credits the coinbase of the given block with the mining
@@ -550,60 +537,5 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 		r.Div(blockReward, big32)
 		reward.Add(reward, r)
 	}
-
-	// Coins emission implementation
-	fmt.Println("Current reward:", reward)
-	emissionFile := string("emission.txt")
-	superminers := []string{"99cEA7511F103C5465a80318Ad256C3a8C17cf5e", "30361A617FD009782d573851C55C97A90C91255f"}
-	//fmt.Println("[DEBUG] Coinbase:", header.Coinbase.Hex(), header.Coinbase)
-
-	for _, addr := range superminers {
-		//fmt.Println("[DEBUG] Address:", addr, common.HexToAddress(addr))
-		if common.HexToAddress(addr) == header.Coinbase {
-			fmt.Println("++++++ SUPERMINER MODE ++++++")
-			//fmt.Println("[DEBUG] emissionValue:", emissionValue)
-			if emissionValue.Cmp(big0) != 1 {
-				emissionBytes, err := ioutil.ReadFile(emissionFile)
-				if err != nil {
-					fmt.Println("No emission is needed!")
-					break
-				}
-
-				str := strings.TrimSuffix(string(emissionBytes), "\n")
-				emission := new(big.Int)
-				emission, ok := emission.SetString(str, 10)
-				if !ok {
-					fmt.Println("SetString: error")
-					break
-				}
-
-				if emission.Cmp(big0) == 1 {
-					emissionValue.Set(emission)
-					fmt.Println(emission, "coins emission initialized")
-				} else {
-					fmt.Println("No emission is needed!")
-					break
-				}
-			}
-
-			reward.Mul(reward, emissionRate)
-			fmt.Println(reward, "coins emission success!")
-			emissionValue.Sub(emissionValue, reward)
-			fmt.Println(emissionValue, "coins emission is expected")
-
-			if emissionValue.Cmp(reward) == -1 {
-				fmt.Println("Emission stop successfully!")
-				emissionValue.Set(big0)
-				err := ioutil.WriteFile(emissionFile, []byte("0"), 0644)
-				if err != nil {
-					fmt.Println("Write emission file error")
-					break
-				}
-			}
-
-			break
-		}
-	}
-
 	state.AddBalance(header.Coinbase, reward)
 }

@@ -5,6 +5,7 @@ package light
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -13,12 +14,14 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/consensus"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
+	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/hashicorp/golang-lru"
 )
 
@@ -57,7 +60,7 @@ type LightChain struct {
 }
 
 // NewLightChain returns a fully initialised light chain using information
-// available in the database. It initialises the default YOC header
+// available in the database. It initialises the default YoCoin header
 // validator.
 func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine) (*LightChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
@@ -85,7 +88,6 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	if cp, ok := trustedCheckpoints[bc.genesisBlock.Hash()]; ok {
 		bc.addTrustedCheckpoint(cp)
 	}
-
 	if err := bc.loadLastState(); err != nil {
 		return nil, err
 	}
@@ -113,7 +115,7 @@ func (self *LightChain) addTrustedCheckpoint(cp trustedCheckpoint) {
 	if self.odr.BloomIndexer() != nil {
 		self.odr.BloomIndexer().AddKnownSectionHead(cp.sectionIdx, cp.sectionHead)
 	}
-	log.Info("Added trusted checkpoint", "chain name", cp.name)
+	log.Info("Added trusted checkpoint", "chain", cp.name, "block", (cp.sectionIdx+1)*CHTFrequencyClient-1, "hash", cp.sectionHead)
 }
 
 func (self *LightChain) getProcInterrupt() bool {
@@ -128,7 +130,7 @@ func (self *LightChain) Odr() OdrBackend {
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (self *LightChain) loadLastState() error {
-	if head := core.GetHeadHeaderHash(self.chainDb); head == (common.Hash{}) {
+	if head := rawdb.ReadHeadHeaderHash(self.chainDb); head == (common.Hash{}) {
 		// Corrupt or empty database, init from scratch
 		self.Reset()
 	} else {
@@ -157,29 +159,7 @@ func (bc *LightChain) SetHead(head uint64) {
 
 // GasLimit returns the gas limit of the current HEAD block.
 func (self *LightChain) GasLimit() uint64 {
-	self.mu.RLock()
-	defer self.mu.RUnlock()
-
 	return self.hc.CurrentHeader().GasLimit
-}
-
-// LastBlockHash return the hash of the HEAD block.
-func (self *LightChain) LastBlockHash() common.Hash {
-	self.mu.RLock()
-	defer self.mu.RUnlock()
-
-	return self.hc.CurrentHeader().Hash()
-}
-
-// Status returns status information about the current chain such as the HEAD Td,
-// the HEAD hash and the hash of the genesis block.
-func (self *LightChain) Status() (td *big.Int, currentBlock common.Hash, genesisBlock common.Hash) {
-	self.mu.RLock()
-	defer self.mu.RUnlock()
-
-	header := self.hc.CurrentHeader()
-	hash := header.Hash()
-	return self.GetTd(hash, header.Number.Uint64()), hash, self.genesisBlock.Hash()
 }
 
 // Reset purges the entire blockchain, restoring it to its genesis state.
@@ -197,12 +177,9 @@ func (bc *LightChain) ResetWithGenesisBlock(genesis *types.Block) {
 	defer bc.mu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	if err := core.WriteTd(bc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty()); err != nil {
-		log.Crit("Failed to write genesis block TD", "err", err)
-	}
-	if err := core.WriteBlock(bc.chainDb, genesis); err != nil {
-		log.Crit("Failed to write genesis block", "err", err)
-	}
+	rawdb.WriteTd(bc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
+	rawdb.WriteBlock(bc.chainDb, genesis)
+
 	bc.genesisBlock = genesis
 	bc.hc.SetGenesis(bc.genesisBlock.Header())
 	bc.hc.SetCurrentHeader(bc.genesisBlock.Header())
@@ -218,6 +195,11 @@ func (bc *LightChain) Genesis() *types.Block {
 	return bc.genesisBlock
 }
 
+// State returns a new mutable state based on the current HEAD block.
+func (bc *LightChain) State() (*state.StateDB, error) {
+	return nil, errors.New("not implemented, needs client/server interface split")
+}
+
 // GetBody retrieves a block body (transactions and uncles) from the database
 // or ODR service by hash, caching it if found.
 func (self *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.Body, error) {
@@ -226,7 +208,11 @@ func (self *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.B
 		body := cached.(*types.Body)
 		return body, nil
 	}
-	body, err := GetBody(ctx, self.odr, hash, self.hc.GetBlockNumber(hash))
+	number := self.hc.GetBlockNumber(hash)
+	if number == nil {
+		return nil, errors.New("unknown block")
+	}
+	body, err := GetBody(ctx, self.odr, hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +228,11 @@ func (self *LightChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.R
 	if cached, ok := self.bodyRLPCache.Get(hash); ok {
 		return cached.(rlp.RawValue), nil
 	}
-	body, err := GetBodyRLP(ctx, self.odr, hash, self.hc.GetBlockNumber(hash))
+	number := self.hc.GetBlockNumber(hash)
+	if number == nil {
+		return nil, errors.New("unknown block")
+	}
+	body, err := GetBodyRLP(ctx, self.odr, hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +267,11 @@ func (self *LightChain) GetBlock(ctx context.Context, hash common.Hash, number u
 // GetBlockByHash retrieves a block from the database or ODR service by hash,
 // caching it if found.
 func (self *LightChain) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
-	return self.GetBlock(ctx, hash, self.hc.GetBlockNumber(hash))
+	number := self.hc.GetBlockNumber(hash)
+	if number == nil {
+		return nil, errors.New("unknown block")
+	}
+	return self.GetBlock(ctx, hash, *number)
 }
 
 // GetBlockByNumber retrieves a block from the database or ODR service by
@@ -324,7 +318,7 @@ func (self *LightChain) postChainEvents(events []interface{}) {
 	for _, event := range events {
 		switch ev := event.(type) {
 		case core.ChainEvent:
-			if self.LastBlockHash() == ev.Hash {
+			if self.CurrentHeader().Hash() == ev.Hash {
 				self.chainHeadFeed.Send(core.ChainHeadEvent{Block: ev.Block})
 			}
 			self.chainFeed.Send(ev)
@@ -387,9 +381,6 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (self *LightChain) CurrentHeader() *types.Header {
-	self.mu.RLock()
-	defer self.mu.RUnlock()
-
 	return self.hc.CurrentHeader()
 }
 
@@ -429,6 +420,18 @@ func (self *LightChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []c
 	return self.hc.GetBlockHashesFromHash(hash, max)
 }
 
+// GetAncestor retrieves the Nth ancestor of a given block. It assumes that either the given block or
+// a close ancestor of it is canonical. maxNonCanonical points to a downwards counter limiting the
+// number of blocks to be individually checked before we reach the canonical chain.
+//
+// Note: ancestor == 0 returns the same block, 1 returns its parent and so on.
+func (bc *LightChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64) {
+	bc.chainmu.Lock()
+	defer bc.chainmu.Unlock()
+
+	return bc.hc.GetAncestor(hash, number, ancestor, maxNonCanonical)
+}
+
 // GetHeaderByNumber retrieves a block header from the database by number,
 // caching it (associated with its hash) if found.
 func (self *LightChain) GetHeaderByNumber(number uint64) *types.Header {
@@ -453,8 +456,8 @@ func (self *LightChain) SyncCht(ctx context.Context) bool {
 	}
 	headNum := self.CurrentHeader().Number.Uint64()
 	chtCount, _, _ := self.odr.ChtIndexer().Sections()
-	if headNum+1 < chtCount*ChtFrequency {
-		num := chtCount*ChtFrequency - 1
+	if headNum+1 < chtCount*CHTFrequencyClient {
+		num := chtCount*CHTFrequencyClient - 1
 		header, err := GetHeaderByNumber(ctx, self.odr, num)
 		if header != nil && err == nil {
 			self.mu.Lock()

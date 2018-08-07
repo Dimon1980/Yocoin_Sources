@@ -4,33 +4,34 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"testing"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
-	"github.com/Yocoin15/Yocoin_Sources/log"
+	"github.com/Yocoin15/Yocoin_Sources/core/types"
+	"github.com/Yocoin15/Yocoin_Sources/swarm/log"
 	"github.com/Yocoin15/Yocoin_Sources/swarm/storage"
 )
 
-func testApi(t *testing.T, f func(*Api)) {
+func testAPI(t *testing.T, f func(*API, bool)) {
 	datadir, err := ioutil.TempDir("", "bzz-test")
 	if err != nil {
 		t.Fatalf("unable to create temp dir: %v", err)
 	}
-	os.RemoveAll(datadir)
 	defer os.RemoveAll(datadir)
-	dpa, err := storage.NewLocalDPA(datadir)
+	fileStore, err := storage.NewLocalFileStore(datadir, make([]byte, 32))
 	if err != nil {
 		return
 	}
-	api := NewApi(dpa, nil)
-	dpa.Start()
-	f(api)
-	dpa.Stop()
+	api := NewAPI(fileStore, nil, nil)
+	f(api, false)
+	f(api, true)
 }
 
 type testResponse struct {
@@ -69,15 +70,14 @@ func expResponse(content string, mimeType string, status int) *Response {
 	return &Response{mimeType, status, int64(len(content)), content}
 }
 
-// func testGet(t *testing.T, api *Api, bzzhash string) *testResponse {
-func testGet(t *testing.T, api *Api, bzzhash, path string) *testResponse {
-	key := storage.Key(common.Hex2Bytes(bzzhash))
-	reader, mimeType, status, err := api.Get(key, path)
+func testGet(t *testing.T, api *API, bzzhash, path string) *testResponse {
+	addr := storage.Address(common.Hex2Bytes(bzzhash))
+	reader, mimeType, status, _, err := api.Get(context.TODO(), addr, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	quitC := make(chan bool)
-	size, err := reader.Size(quitC)
+	size, err := reader.Size(context.TODO(), quitC)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,27 +93,31 @@ func testGet(t *testing.T, api *Api, bzzhash, path string) *testResponse {
 }
 
 func TestApiPut(t *testing.T) {
-	testApi(t, func(api *Api) {
+	testAPI(t, func(api *API, toEncrypt bool) {
 		content := "hello"
 		exp := expResponse(content, "text/plain", 0)
-		// exp := expResponse([]byte(content), "text/plain", 0)
-		key, err := api.Put(content, exp.MimeType)
+		ctx := context.TODO()
+		addr, wait, err := api.Put(ctx, content, exp.MimeType, toEncrypt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		resp := testGet(t, api, key.String(), "")
+		err = wait(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		resp := testGet(t, api, addr.Hex(), "")
 		checkResponse(t, resp, exp)
 	})
 }
 
 // testResolver implements the Resolver interface and either returns the given
 // hash if it is set, or returns a "name not found" error
-type testResolver struct {
+type testResolveValidator struct {
 	hash *common.Hash
 }
 
-func newTestResolver(addr string) *testResolver {
-	r := &testResolver{}
+func newTestResolveValidator(addr string) *testResolveValidator {
+	r := &testResolveValidator{}
 	if addr != "" {
 		hash := common.HexToHash(addr)
 		r.hash = &hash
@@ -121,21 +125,28 @@ func newTestResolver(addr string) *testResolver {
 	return r
 }
 
-func (t *testResolver) Resolve(addr string) (common.Hash, error) {
+func (t *testResolveValidator) Resolve(addr string) (common.Hash, error) {
 	if t.hash == nil {
 		return common.Hash{}, fmt.Errorf("DNS name not found: %q", addr)
 	}
 	return *t.hash, nil
 }
 
+func (t *testResolveValidator) Owner(node [32]byte) (addr common.Address, err error) {
+	return
+}
+func (t *testResolveValidator) HeaderByNumber(context.Context, *big.Int) (header *types.Header, err error) {
+	return
+}
+
 // TestAPIResolve tests resolving URIs which can either contain content hashes
 // or ENS names
 func TestAPIResolve(t *testing.T) {
-	ensAddr := "swarm.eth"
+	ensAddr := "swarm.yoc"
 	hashAddr := "1111111111111111111111111111111111111111111111111111111111111111"
 	resolvedAddr := "2222222222222222222222222222222222222222222222222222222222222222"
-	doesResolve := newTestResolver(resolvedAddr)
-	doesntResolve := newTestResolver("")
+	doesResolve := newTestResolveValidator(resolvedAddr)
+	doesntResolve := newTestResolveValidator("")
 
 	type test struct {
 		desc      string
@@ -157,7 +168,7 @@ func TestAPIResolve(t *testing.T) {
 			desc:      "DNS not configured, ENS address, returns error",
 			dns:       nil,
 			addr:      ensAddr,
-			expectErr: errors.New(`no DNS to resolve name: "swarm.eth"`),
+			expectErr: errors.New(`no DNS to resolve name: "swarm.yoc"`),
 		},
 		{
 			desc:   "DNS configured, hash address, hash resolves, returns resolved address",
@@ -189,23 +200,23 @@ func TestAPIResolve(t *testing.T) {
 			dns:       doesResolve,
 			addr:      ensAddr,
 			immutable: true,
-			expectErr: errors.New(`immutable address not a content hash: "swarm.eth"`),
+			expectErr: errors.New(`immutable address not a content hash: "swarm.yoc"`),
 		},
 		{
 			desc:      "DNS configured, ENS address, name doesn't resolve, returns error",
 			dns:       doesntResolve,
 			addr:      ensAddr,
-			expectErr: errors.New(`DNS name not found: "swarm.eth"`),
+			expectErr: errors.New(`DNS name not found: "swarm.yoc"`),
 		},
 	}
 	for _, x := range tests {
 		t.Run(x.desc, func(t *testing.T) {
-			api := &Api{dns: x.dns}
+			api := &API{dns: x.dns}
 			uri := &URI{Addr: x.addr, Scheme: "bzz"}
 			if x.immutable {
 				uri.Scheme = "bzz-immutable"
 			}
-			res, err := api.Resolve(uri)
+			res, err := api.Resolve(context.TODO(), uri)
 			if err == nil {
 				if x.expectErr != nil {
 					t.Fatalf("expected error %q, got result %q", x.expectErr, res)
@@ -219,6 +230,131 @@ func TestAPIResolve(t *testing.T) {
 				}
 				if err.Error() != x.expectErr.Error() {
 					t.Fatalf("expected error %q, got %q", x.expectErr, err)
+				}
+			}
+		})
+	}
+}
+
+func TestMultiResolver(t *testing.T) {
+	doesntResolve := newTestResolveValidator("")
+
+	yocAddr := "swarm.yoc"
+	yocHash := "0x2222222222222222222222222222222222222222222222222222222222222222"
+	yocResolve := newTestResolveValidator(yocHash)
+
+	testAddr := "swarm.test"
+	testHash := "0x1111111111111111111111111111111111111111111111111111111111111111"
+	testResolve := newTestResolveValidator(testHash)
+
+	tests := []struct {
+		desc   string
+		r      Resolver
+		addr   string
+		result string
+		err    error
+	}{
+		{
+			desc: "No resolvers, returns error",
+			r:    NewMultiResolver(),
+			err:  NewNoResolverError(""),
+		},
+		{
+			desc:   "One default resolver, returns resolved address",
+			r:      NewMultiResolver(MultiResolverOptionWithResolver(yocResolve, "")),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "Two default resolvers, returns resolved address",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(yocResolve, ""),
+				MultiResolverOptionWithResolver(yocResolve, ""),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "Two default resolvers, first doesn't resolve, returns resolved address",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(doesntResolve, ""),
+				MultiResolverOptionWithResolver(yocResolve, ""),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "Default resolver doesn't resolve, tld resolver resolve, returns resolved address",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(doesntResolve, ""),
+				MultiResolverOptionWithResolver(yocResolve, "yoc"),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "Three TLD resolvers, third resolves, returns resolved address",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(doesntResolve, "yoc"),
+				MultiResolverOptionWithResolver(doesntResolve, "yoc"),
+				MultiResolverOptionWithResolver(yocResolve, "yoc"),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "One TLD resolver doesn't resolve, returns error",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(doesntResolve, ""),
+				MultiResolverOptionWithResolver(yocResolve, "yoc"),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+		},
+		{
+			desc: "One defautl and one TLD resolver, all doesn't resolve, returns error",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(doesntResolve, ""),
+				MultiResolverOptionWithResolver(doesntResolve, "yoc"),
+			),
+			addr:   yocAddr,
+			result: yocHash,
+			err:    errors.New(`DNS name not found: "swarm.yoc"`),
+		},
+		{
+			desc: "Two TLD resolvers, both resolve, returns resolved address",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(yocResolve, "yoc"),
+				MultiResolverOptionWithResolver(testResolve, "test"),
+			),
+			addr:   testAddr,
+			result: testHash,
+		},
+		{
+			desc: "One TLD resolver, no default resolver, returns error for different TLD",
+			r: NewMultiResolver(
+				MultiResolverOptionWithResolver(yocResolve, "yoc"),
+			),
+			addr: testAddr,
+			err:  NewNoResolverError("test"),
+		},
+	}
+	for _, x := range tests {
+		t.Run(x.desc, func(t *testing.T) {
+			res, err := x.r.Resolve(x.addr)
+			if err == nil {
+				if x.err != nil {
+					t.Fatalf("expected error %q, got result %q", x.err, res.Hex())
+				}
+				if res.Hex() != x.result {
+					t.Fatalf("expected result %q, got %q", x.result, res.Hex())
+				}
+			} else {
+				if x.err == nil {
+					t.Fatalf("expected no error, got %q", err)
+				}
+				if err.Error() != x.err.Error() {
+					t.Fatalf("expected error %q, got %q", x.err, err)
 				}
 			}
 		})

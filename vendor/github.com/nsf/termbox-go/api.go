@@ -8,7 +8,6 @@ import "os"
 import "os/signal"
 import "syscall"
 import "runtime"
-import "time"
 
 // public API
 
@@ -254,8 +253,8 @@ func CellBuffer() []Cell {
 // NOTE: This API is experimental and may change in future.
 func ParseEvent(data []byte) Event {
 	event := Event{Type: EventKey}
-	status := extract_event(data, &event, false)
-	if status != event_extracted {
+	ok := extract_event(data, &event)
+	if !ok {
 		return Event{Type: EventNone, N: event.N}
 	}
 	return event
@@ -304,65 +303,34 @@ func PollRawEvent(data []byte) Event {
 
 // Wait for an event and return it. This is a blocking function call.
 func PollEvent() Event {
-	// Constant governing macOS specific behavior. See https://github.com/nsf/termbox-go/issues/132
-	// This is an arbitrary delay which hopefully will be enough time for any lagging
-	// partial escape sequences to come through.
-	const esc_wait_delay = 100 * time.Millisecond
-
 	var event Event
-	var esc_wait_timer *time.Timer
-	var esc_timeout <-chan time.Time
 
 	// try to extract event from input buffer, return on success
 	event.Type = EventKey
-	status := extract_event(inbuf, &event, true)
+	ok := extract_event(inbuf, &event)
 	if event.N != 0 {
 		copy(inbuf, inbuf[event.N:])
 		inbuf = inbuf[:len(inbuf)-event.N]
 	}
-	if status == event_extracted {
+	if ok {
 		return event
-	} else if status == esc_wait {
-		esc_wait_timer = time.NewTimer(esc_wait_delay)
-		esc_timeout = esc_wait_timer.C
 	}
 
 	for {
 		select {
 		case ev := <-input_comm:
-			if esc_wait_timer != nil {
-				if !esc_wait_timer.Stop() {
-					<-esc_wait_timer.C
-				}
-				esc_wait_timer = nil
-			}
-
 			if ev.err != nil {
 				return Event{Type: EventError, Err: ev.err}
 			}
 
 			inbuf = append(inbuf, ev.data...)
 			input_comm <- ev
-			status := extract_event(inbuf, &event, true)
+			ok := extract_event(inbuf, &event)
 			if event.N != 0 {
 				copy(inbuf, inbuf[event.N:])
 				inbuf = inbuf[:len(inbuf)-event.N]
 			}
-			if status == event_extracted {
-				return event
-			} else if status == esc_wait {
-				esc_wait_timer = time.NewTimer(esc_wait_delay)
-				esc_timeout = esc_wait_timer.C
-			}
-		case <-esc_timeout:
-			esc_wait_timer = nil
-
-			status := extract_event(inbuf, &event, false)
-			if event.N != 0 {
-				copy(inbuf, inbuf[event.N:])
-				inbuf = inbuf[:len(inbuf)-event.N]
-			}
-			if status == event_extracted {
+			if ok {
 				return event
 			}
 		case <-interrupt_comm:
@@ -450,12 +418,12 @@ func SetInputMode(mode InputMode) InputMode {
 //
 // 3. Output216 => [1..216]
 //    This mode supports the 3rd range of the 256 mode only.
-//    But you don't need to provide an offset.
+//    But you dont need to provide an offset.
 //
 // 4. OutputGrayscale => [1..26]
 //    This mode supports the 4th range of the 256 mode
 //    and black and white colors from 3th range of the 256 mode
-//    But you don't need to provide an offset.
+//    But you dont need to provide an offset.
 //
 // In all modes, 0x00 represents the default color.
 //

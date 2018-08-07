@@ -3,7 +3,7 @@
 
 // Contains initialization code for the mbile library.
 
-package geth
+package yocoin
 
 import (
 	"os"

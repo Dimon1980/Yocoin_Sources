@@ -16,7 +16,7 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/log"
 )
 
-// makeWizard creates and returns a new yoceth wizard.
+// makeWizard creates and returns a new puppyoc wizard.
 func makeWizard(network string) *wizard {
 	return &wizard{
 		network: network,
@@ -30,37 +30,38 @@ func makeWizard(network string) *wizard {
 }
 
 // run displays some useful infos to the user, starting on the journey of
-// setting up a new or managing an existing YOC private network.
+// setting up a new or managing an existing YoCoin private network.
 func (w *wizard) run() {
 	fmt.Println("+-----------------------------------------------------------+")
-	fmt.Println("| Welcome to Yoceth, your YOC private network manager       |")
+	fmt.Println("| Welcome to puppeth, your YoCoin private network manager |")
 	fmt.Println("|                                                           |")
-	fmt.Println("| This tool lets you create a new YOC network down to       |")
+	fmt.Println("| This tool lets you create a new YoCoin network down to  |")
 	fmt.Println("| the genesis block, bootnodes, miners and yocstats servers |")
 	fmt.Println("| without the hassle that it would normally entail.         |")
 	fmt.Println("|                                                           |")
-	fmt.Println("| Yoceth uses SSH to dial in to remote servers, and builds  |")
+	fmt.Println("| Puppeth uses SSH to dial in to remote servers, and builds |")
 	fmt.Println("| its network components out of Docker containers using the |")
 	fmt.Println("| docker-compose toolset.                                   |")
 	fmt.Println("+-----------------------------------------------------------+")
 	fmt.Println()
 
 	// Make sure we have a good network name to work with	fmt.Println()
+	// Docker accepts hyphens in image names, but doesn't like it for container names
 	if w.network == "" {
-		fmt.Println("Please specify a network name to administer (no spaces, please)")
+		fmt.Println("Please specify a network name to administer (no spaces or hyphens, please)")
 		for {
 			w.network = w.readString()
-			if !strings.Contains(w.network, " ") {
+			if !strings.Contains(w.network, " ") && !strings.Contains(w.network, "-") {
 				fmt.Printf("\nSweet, you can set this via --network=%s next time!\n\n", w.network)
 				break
 			}
-			log.Error("I also like to live dangerously, still no spaces")
+			log.Error("I also like to live dangerously, still no spaces or hyphens")
 		}
 	}
-	log.Info("Administering YOC network", "name", w.network)
+	log.Info("Administering YoCoin network", "name", w.network)
 
 	// Load initial configurations and connect to all live servers
-	w.conf.path = filepath.Join(os.Getenv("HOME"), ".yoceth", w.network)
+	w.conf.path = filepath.Join(os.Getenv("HOME"), ".puppyoc", w.network)
 
 	blob, err := ioutil.ReadFile(w.conf.path)
 	if err != nil {

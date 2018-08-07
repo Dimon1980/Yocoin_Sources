@@ -1,4 +1,4 @@
-// Authored and revised by YOC team, 2017-2018
+// Authored and revised by YOC team, 2018
 // License placeholder #1
 
 package main
@@ -21,7 +21,7 @@ func TestMessageSignVerify(t *testing.T) {
 	message := "test message"
 
 	// Create the key.
-	generate := runYOCKey(t, "generate", keyfile)
+	generate := runYockey(t, "generate", keyfile)
 	generate.Expect(`
 !! Unsupported terminal, password will be echoed.
 Passphrase: {{.InputLine "foobar"}}
@@ -32,7 +32,7 @@ Repeat passphrase: {{.InputLine "foobar"}}
 	generate.ExpectExit()
 
 	// Sign a message.
-	sign := runYOCKey(t, "signmessage", keyfile, message)
+	sign := runYockey(t, "signmessage", keyfile, message)
 	sign.Expect(`
 !! Unsupported terminal, password will be echoed.
 Passphrase: {{.InputLine "foobar"}}
@@ -42,7 +42,7 @@ Passphrase: {{.InputLine "foobar"}}
 	sign.ExpectExit()
 
 	// Verify the message.
-	verify := runYOCKey(t, "verifymessage", address, signature, message)
+	verify := runYockey(t, "verifymessage", address, signature, message)
 	_, matches = verify.ExpectRegexp(`
 Signature verification successful!
 Recovered public key: [0-9a-f]+

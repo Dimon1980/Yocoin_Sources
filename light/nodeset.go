@@ -1,4 +1,4 @@
-// Authored and revised by YOC team, 2014-2018
+// Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
 package light
@@ -10,13 +10,15 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
-	"github.com/Yocoin15/Yocoin_Sources/trie"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // NodeSet stores a set of trie nodes. It implements trie.Database and can also
 // act as a cache for another trie.Database.
 type NodeSet struct {
-	db       map[string][]byte
+	nodes map[string][]byte
+	order []string
+
 	dataSize int
 	lock     sync.RWMutex
 }
@@ -24,7 +26,7 @@ type NodeSet struct {
 // NewNodeSet creates an empty node set
 func NewNodeSet() *NodeSet {
 	return &NodeSet{
-		db: make(map[string][]byte),
+		nodes: make(map[string][]byte),
 	}
 }
 
@@ -33,10 +35,15 @@ func (db *NodeSet) Put(key []byte, value []byte) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if _, ok := db.db[string(key)]; !ok {
-		db.db[string(key)] = common.CopyBytes(value)
-		db.dataSize += len(value)
+	if _, ok := db.nodes[string(key)]; ok {
+		return nil
 	}
+	keystr := string(key)
+
+	db.nodes[keystr] = common.CopyBytes(value)
+	db.order = append(db.order, keystr)
+	db.dataSize += len(value)
+
 	return nil
 }
 
@@ -45,7 +52,7 @@ func (db *NodeSet) Get(key []byte) ([]byte, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	if entry, ok := db.db[string(key)]; ok {
+	if entry, ok := db.nodes[string(key)]; ok {
 		return entry, nil
 	}
 	return nil, errors.New("not found")
@@ -62,7 +69,7 @@ func (db *NodeSet) KeyCount() int {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	return len(db.db)
+	return len(db.nodes)
 }
 
 // DataSize returns the aggregated data size of nodes in the set
@@ -79,27 +86,27 @@ func (db *NodeSet) NodeList() NodeList {
 	defer db.lock.RUnlock()
 
 	var values NodeList
-	for _, value := range db.db {
-		values = append(values, value)
+	for _, key := range db.order {
+		values = append(values, db.nodes[key])
 	}
 	return values
 }
 
 // Store writes the contents of the set to the given database
-func (db *NodeSet) Store(target trie.Database) {
+func (db *NodeSet) Store(target yocdb.Putter) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	for key, value := range db.db {
+	for key, value := range db.nodes {
 		target.Put([]byte(key), value)
 	}
 }
 
-// NodeList stores an ordered list of trie nodes. It implements trie.DatabaseWriter.
+// NodeList stores an ordered list of trie nodes. It implements yocdb.Putter.
 type NodeList []rlp.RawValue
 
 // Store writes the contents of the list to the given database
-func (n NodeList) Store(db trie.Database) {
+func (n NodeList) Store(db yocdb.Putter) {
 	for _, node := range n {
 		db.Put(crypto.Keccak256(node), node)
 	}

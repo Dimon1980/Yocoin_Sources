@@ -10,13 +10,14 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common/bitutil"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/bloombits"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 const (
-	// bloomServiceThreads is the number of goroutines used globally by an YOC
+	// bloomServiceThreads is the number of goroutines used globally by an YoCoin
 	// instance to service bloombits lookups for all running filters.
 	bloomServiceThreads = 16
 
@@ -35,20 +36,20 @@ const (
 
 // startBloomHandlers starts a batch of goroutines to accept bloom bit database
 // retrievals from possibly a range of filters and serving the data to satisfy.
-func (eth *YoCoin) startBloomHandlers() {
+func (yoc *YoCoin) startBloomHandlers() {
 	for i := 0; i < bloomServiceThreads; i++ {
 		go func() {
 			for {
 				select {
-				case <-eth.shutdownChan:
+				case <-yoc.shutdownChan:
 					return
 
-				case request := <-eth.bloomRequests:
+				case request := <-yoc.bloomRequests:
 					task := <-request
 					task.Bitsets = make([][]byte, len(task.Sections))
 					for i, section := range task.Sections {
-						head := core.GetCanonicalHash(eth.chainDb, (section+1)*params.BloomBitsBlocks-1)
-						if compVector, err := core.GetBloomBits(eth.chainDb, task.Bit, section, head); err == nil {
+						head := rawdb.ReadCanonicalHash(yoc.chainDb, (section+1)*params.BloomBitsBlocks-1)
+						if compVector, err := rawdb.ReadBloomBits(yoc.chainDb, task.Bit, section, head); err == nil {
 							if blob, err := bitutil.DecompressBytes(compVector, int(params.BloomBitsBlocks)/8); err == nil {
 								task.Bitsets[i] = blob
 							} else {
@@ -76,7 +77,7 @@ const (
 )
 
 // BloomIndexer implements a core.ChainIndexer, building up a rotated bloom bits index
-// for the YOC header bloom filters, permitting blazing fast filtering.
+// for the YoCoin header bloom filters, permitting blazing fast filtering.
 type BloomIndexer struct {
 	size uint64 // section size to generate bloombits for
 
@@ -94,7 +95,7 @@ func NewBloomIndexer(db yocdb.Database, size uint64) *core.ChainIndexer {
 		db:   db,
 		size: size,
 	}
-	table := yocdb.NewTable(db, string(core.BloomBitsIndexPrefix))
+	table := yocdb.NewTable(db, string(rawdb.BloomBitsIndexPrefix))
 
 	return core.NewChainIndexer(db, table, backend, size, bloomConfirms, bloomThrottling, "bloombits")
 }
@@ -124,7 +125,7 @@ func (b *BloomIndexer) Commit() error {
 		if err != nil {
 			return err
 		}
-		core.WriteBloomBits(batch, uint(i), b.section, b.head, bitutil.CompressBytes(bits))
+		rawdb.WriteBloomBits(batch, uint(i), b.section, b.head, bitutil.CompressBytes(bits))
 	}
 	return batch.Write()
 }

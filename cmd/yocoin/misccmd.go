@@ -21,11 +21,11 @@ var (
 	makecacheCommand = cli.Command{
 		Action:    utils.MigrateFlags(makecache),
 		Name:      "makecache",
-		Usage:     "Generate ethash verification cache (for testing)",
+		Usage:     "Generate yochash verification cache (for testing)",
 		ArgsUsage: "<blockNum> <outputDir>",
 		Category:  "MISCELLANEOUS COMMANDS",
 		Description: `
-The makecache command generates an ethash cache in <outputDir>.
+The makecache command generates an yochash cache in <outputDir>.
 
 This command exists to support the system testing project.
 Regular users do not need to execute it.
@@ -34,11 +34,11 @@ Regular users do not need to execute it.
 	makedagCommand = cli.Command{
 		Action:    utils.MigrateFlags(makedag),
 		Name:      "makedag",
-		Usage:     "Generate ethash mining DAG (for testing)",
+		Usage:     "Generate yochash mining DAG (for testing)",
 		ArgsUsage: "<blockNum> <outputDir>",
 		Category:  "MISCELLANEOUS COMMANDS",
 		Description: `
-The makedag command generates an ethash DAG in <outputDir>.
+The makedag command generates an yochash DAG in <outputDir>.
 
 This command exists to support the system testing project.
 Regular users do not need to execute it.
@@ -63,7 +63,7 @@ The output of this command is supposed to be machine-readable.
 	}
 )
 
-// makecache generates an ethash verification cache into the provided folder.
+// makecache generates an yochash verification cache into the provided folder.
 func makecache(ctx *cli.Context) error {
 	args := ctx.Args()
 	if len(args) != 2 {
@@ -78,7 +78,7 @@ func makecache(ctx *cli.Context) error {
 	return nil
 }
 
-// makedag generates an ethash mining DAG into the provided folder.
+// makedag generates an yochash mining DAG into the provided folder.
 func makedag(ctx *cli.Context) error {
 	args := ctx.Args()
 	if len(args) != 2 {
@@ -95,7 +95,7 @@ func makedag(ctx *cli.Context) error {
 
 func version(ctx *cli.Context) error {
 	fmt.Println(strings.Title(clientIdentifier))
-	fmt.Println("Version:", params.Version)
+	fmt.Println("Version:", params.VersionWithMeta)
 	if gitCommit != "" {
 		fmt.Println("Git Commit:", gitCommit)
 	}
@@ -110,6 +110,17 @@ func version(ctx *cli.Context) error {
 }
 
 func license(_ *cli.Context) error {
-	fmt.Println(`yocoin.org for details`)
+	fmt.Println(`Geth is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Geth is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with yocoin. If not, see <http://www.gnu.org/licenses/>.`)
 	return nil
 }

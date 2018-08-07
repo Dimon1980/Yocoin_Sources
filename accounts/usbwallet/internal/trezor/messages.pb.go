@@ -70,17 +70,17 @@ const (
 	MessageType_MessageType_SignIdentity             MessageType = 53
 	MessageType_MessageType_SignedIdentity           MessageType = 54
 	MessageType_MessageType_GetFeatures              MessageType = 55
-	MessageType_MessageType_YoCoinGetAddress       MessageType = 56
-	MessageType_MessageType_YoCoinAddress          MessageType = 57
-	MessageType_MessageType_YoCoinSignTx           MessageType = 58
-	MessageType_MessageType_YoCoinTxRequest        MessageType = 59
-	MessageType_MessageType_YoCoinTxAck            MessageType = 60
+	MessageType_MessageType_EthereumGetAddress       MessageType = 56
+	MessageType_MessageType_EthereumAddress          MessageType = 57
+	MessageType_MessageType_EthereumSignTx           MessageType = 58
+	MessageType_MessageType_EthereumTxRequest        MessageType = 59
+	MessageType_MessageType_EthereumTxAck            MessageType = 60
 	MessageType_MessageType_GetECDHSessionKey        MessageType = 61
 	MessageType_MessageType_ECDHSessionKey           MessageType = 62
 	MessageType_MessageType_SetU2FCounter            MessageType = 63
-	MessageType_MessageType_YoCoinSignMessage      MessageType = 64
-	MessageType_MessageType_YoCoinVerifyMessage    MessageType = 65
-	MessageType_MessageType_YoCoinMessageSignature MessageType = 66
+	MessageType_MessageType_EthereumSignMessage      MessageType = 64
+	MessageType_MessageType_EthereumVerifyMessage    MessageType = 65
+	MessageType_MessageType_EthereumMessageSignature MessageType = 66
 	MessageType_MessageType_DebugLinkDecision        MessageType = 100
 	MessageType_MessageType_DebugLinkGetState        MessageType = 101
 	MessageType_MessageType_DebugLinkState           MessageType = 102
@@ -146,17 +146,17 @@ var MessageType_name = map[int32]string{
 	53:  "MessageType_SignIdentity",
 	54:  "MessageType_SignedIdentity",
 	55:  "MessageType_GetFeatures",
-	56:  "MessageType_YoCoinGetAddress",
-	57:  "MessageType_YoCoinAddress",
-	58:  "MessageType_YoCoinSignTx",
-	59:  "MessageType_YoCoinTxRequest",
-	60:  "MessageType_YoCoinTxAck",
+	56:  "MessageType_EthereumGetAddress",
+	57:  "MessageType_EthereumAddress",
+	58:  "MessageType_EthereumSignTx",
+	59:  "MessageType_EthereumTxRequest",
+	60:  "MessageType_EthereumTxAck",
 	61:  "MessageType_GetECDHSessionKey",
 	62:  "MessageType_ECDHSessionKey",
 	63:  "MessageType_SetU2FCounter",
-	64:  "MessageType_YoCoinSignMessage",
-	65:  "MessageType_YoCoinVerifyMessage",
-	66:  "MessageType_YoCoinMessageSignature",
+	64:  "MessageType_EthereumSignMessage",
+	65:  "MessageType_EthereumVerifyMessage",
+	66:  "MessageType_EthereumMessageSignature",
 	100: "MessageType_DebugLinkDecision",
 	101: "MessageType_DebugLinkGetState",
 	102: "MessageType_DebugLinkState",
@@ -221,17 +221,17 @@ var MessageType_value = map[string]int32{
 	"MessageType_SignIdentity":             53,
 	"MessageType_SignedIdentity":           54,
 	"MessageType_GetFeatures":              55,
-	"MessageType_YoCoinGetAddress":       56,
-	"MessageType_YoCoinAddress":          57,
-	"MessageType_YoCoinSignTx":           58,
-	"MessageType_YoCoinTxRequest":        59,
-	"MessageType_YoCoinTxAck":            60,
+	"MessageType_EthereumGetAddress":       56,
+	"MessageType_EthereumAddress":          57,
+	"MessageType_EthereumSignTx":           58,
+	"MessageType_EthereumTxRequest":        59,
+	"MessageType_EthereumTxAck":            60,
 	"MessageType_GetECDHSessionKey":        61,
 	"MessageType_ECDHSessionKey":           62,
 	"MessageType_SetU2FCounter":            63,
-	"MessageType_YoCoinSignMessage":      64,
-	"MessageType_YoCoinVerifyMessage":    65,
-	"MessageType_YoCoinMessageSignature": 66,
+	"MessageType_EthereumSignMessage":      64,
+	"MessageType_EthereumVerifyMessage":    65,
+	"MessageType_EthereumMessageSignature": 66,
 	"MessageType_DebugLinkDecision":        100,
 	"MessageType_DebugLinkGetState":        101,
 	"MessageType_DebugLinkState":           102,
@@ -954,29 +954,29 @@ func (m *GetAddress) GetScriptType() InputScriptType {
 }
 
 // *
-// Request: Ask device for YOC address corresponding to address_n path
+// Request: Ask device for Ethereum address corresponding to address_n path
 // @next PassphraseRequest
-// @next YOCAddress
+// @next EthereumAddress
 // @next Failure
-type YoCoinGetAddress struct {
+type EthereumGetAddress struct {
 	AddressN         []uint32 `protobuf:"varint,1,rep,name=address_n,json=addressN" json:"address_n,omitempty"`
 	ShowDisplay      *bool    `protobuf:"varint,2,opt,name=show_display,json=showDisplay" json:"show_display,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *YoCoinGetAddress) Reset()                    { *m = YoCoinGetAddress{} }
-func (m *YoCoinGetAddress) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinGetAddress) ProtoMessage()               {}
-func (*YoCoinGetAddress) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{22} }
+func (m *EthereumGetAddress) Reset()                    { *m = EthereumGetAddress{} }
+func (m *EthereumGetAddress) String() string            { return proto.CompactTextString(m) }
+func (*EthereumGetAddress) ProtoMessage()               {}
+func (*EthereumGetAddress) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{22} }
 
-func (m *YoCoinGetAddress) GetAddressN() []uint32 {
+func (m *EthereumGetAddress) GetAddressN() []uint32 {
 	if m != nil {
 		return m.AddressN
 	}
 	return nil
 }
 
-func (m *YoCoinGetAddress) GetShowDisplay() bool {
+func (m *EthereumGetAddress) GetShowDisplay() bool {
 	if m != nil && m.ShowDisplay != nil {
 		return *m.ShowDisplay
 	}
@@ -1004,19 +1004,19 @@ func (m *Address) GetAddress() string {
 }
 
 // *
-// Response: Contains an YOC address derived from device private seed
-// @prev YOCGetAddress
-type YoCoinAddress struct {
+// Response: Contains an Ethereum address derived from device private seed
+// @prev EthereumGetAddress
+type EthereumAddress struct {
 	Address          []byte `protobuf:"bytes,1,req,name=address" json:"address,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *YoCoinAddress) Reset()                    { *m = YoCoinAddress{} }
-func (m *YoCoinAddress) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinAddress) ProtoMessage()               {}
-func (*YoCoinAddress) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{24} }
+func (m *EthereumAddress) Reset()                    { *m = EthereumAddress{} }
+func (m *EthereumAddress) String() string            { return proto.CompactTextString(m) }
+func (*EthereumAddress) ProtoMessage()               {}
+func (*EthereumAddress) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{24} }
 
-func (m *YoCoinAddress) GetAddress() []byte {
+func (m *EthereumAddress) GetAddress() []byte {
 	if m != nil {
 		return m.Address
 	}
@@ -2006,9 +2006,9 @@ func (m *TxAck) GetTx() *TransactionType {
 // Note: the first at most 1024 bytes of data MUST be transmitted as part of this message.
 // @next PassphraseRequest
 // @next PinMatrixRequest
-// @next YOCTxRequest
+// @next EthereumTxRequest
 // @next Failure
-type YoCoinSignTx struct {
+type EthereumSignTx struct {
 	AddressN         []uint32 `protobuf:"varint,1,rep,name=address_n,json=addressN" json:"address_n,omitempty"`
 	Nonce            []byte   `protobuf:"bytes,2,opt,name=nonce" json:"nonce,omitempty"`
 	GasPrice         []byte   `protobuf:"bytes,3,opt,name=gas_price,json=gasPrice" json:"gas_price,omitempty"`
@@ -2021,68 +2021,68 @@ type YoCoinSignTx struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *YoCoinSignTx) Reset()                    { *m = YoCoinSignTx{} }
-func (m *YoCoinSignTx) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinSignTx) ProtoMessage()               {}
-func (*YoCoinSignTx) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{49} }
+func (m *EthereumSignTx) Reset()                    { *m = EthereumSignTx{} }
+func (m *EthereumSignTx) String() string            { return proto.CompactTextString(m) }
+func (*EthereumSignTx) ProtoMessage()               {}
+func (*EthereumSignTx) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{49} }
 
-func (m *YoCoinSignTx) GetAddressN() []uint32 {
+func (m *EthereumSignTx) GetAddressN() []uint32 {
 	if m != nil {
 		return m.AddressN
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetNonce() []byte {
+func (m *EthereumSignTx) GetNonce() []byte {
 	if m != nil {
 		return m.Nonce
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetGasPrice() []byte {
+func (m *EthereumSignTx) GetGasPrice() []byte {
 	if m != nil {
 		return m.GasPrice
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetGasLimit() []byte {
+func (m *EthereumSignTx) GetGasLimit() []byte {
 	if m != nil {
 		return m.GasLimit
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetTo() []byte {
+func (m *EthereumSignTx) GetTo() []byte {
 	if m != nil {
 		return m.To
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetValue() []byte {
+func (m *EthereumSignTx) GetValue() []byte {
 	if m != nil {
 		return m.Value
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetDataInitialChunk() []byte {
+func (m *EthereumSignTx) GetDataInitialChunk() []byte {
 	if m != nil {
 		return m.DataInitialChunk
 	}
 	return nil
 }
 
-func (m *YoCoinSignTx) GetDataLength() uint32 {
+func (m *EthereumSignTx) GetDataLength() uint32 {
 	if m != nil && m.DataLength != nil {
 		return *m.DataLength
 	}
 	return 0
 }
 
-func (m *YoCoinSignTx) GetChainId() uint32 {
+func (m *EthereumSignTx) GetChainId() uint32 {
 	if m != nil && m.ChainId != nil {
 		return *m.ChainId
 	}
@@ -2093,9 +2093,9 @@ func (m *YoCoinSignTx) GetChainId() uint32 {
 // Response: Device asks for more data from transaction payload, or returns the signature.
 // If data_length is set, device awaits that many more bytes of payload.
 // Otherwise, the signature_* fields contain the computed transaction signature. All three fields will be present.
-// @prev YOCSignTx
-// @next YOCTxAck
-type YoCoinTxRequest struct {
+// @prev EthereumSignTx
+// @next EthereumTxAck
+type EthereumTxRequest struct {
 	DataLength       *uint32 `protobuf:"varint,1,opt,name=data_length,json=dataLength" json:"data_length,omitempty"`
 	SignatureV       *uint32 `protobuf:"varint,2,opt,name=signature_v,json=signatureV" json:"signature_v,omitempty"`
 	SignatureR       []byte  `protobuf:"bytes,3,opt,name=signature_r,json=signatureR" json:"signature_r,omitempty"`
@@ -2103,33 +2103,33 @@ type YoCoinTxRequest struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *YoCoinTxRequest) Reset()                    { *m = YoCoinTxRequest{} }
-func (m *YoCoinTxRequest) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinTxRequest) ProtoMessage()               {}
-func (*YoCoinTxRequest) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{50} }
+func (m *EthereumTxRequest) Reset()                    { *m = EthereumTxRequest{} }
+func (m *EthereumTxRequest) String() string            { return proto.CompactTextString(m) }
+func (*EthereumTxRequest) ProtoMessage()               {}
+func (*EthereumTxRequest) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{50} }
 
-func (m *YoCoinTxRequest) GetDataLength() uint32 {
+func (m *EthereumTxRequest) GetDataLength() uint32 {
 	if m != nil && m.DataLength != nil {
 		return *m.DataLength
 	}
 	return 0
 }
 
-func (m *YoCoinTxRequest) GetSignatureV() uint32 {
+func (m *EthereumTxRequest) GetSignatureV() uint32 {
 	if m != nil && m.SignatureV != nil {
 		return *m.SignatureV
 	}
 	return 0
 }
 
-func (m *YoCoinTxRequest) GetSignatureR() []byte {
+func (m *EthereumTxRequest) GetSignatureR() []byte {
 	if m != nil {
 		return m.SignatureR
 	}
 	return nil
 }
 
-func (m *YoCoinTxRequest) GetSignatureS() []byte {
+func (m *EthereumTxRequest) GetSignatureS() []byte {
 	if m != nil {
 		return m.SignatureS
 	}
@@ -2138,19 +2138,19 @@ func (m *YoCoinTxRequest) GetSignatureS() []byte {
 
 // *
 // Request: Transaction payload data.
-// @prev YOCTxRequest
-// @next YOCTxRequest
-type YoCoinTxAck struct {
+// @prev EthereumTxRequest
+// @next EthereumTxRequest
+type EthereumTxAck struct {
 	DataChunk        []byte `protobuf:"bytes,1,opt,name=data_chunk,json=dataChunk" json:"data_chunk,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *YoCoinTxAck) Reset()                    { *m = YoCoinTxAck{} }
-func (m *YoCoinTxAck) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinTxAck) ProtoMessage()               {}
-func (*YoCoinTxAck) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{51} }
+func (m *EthereumTxAck) Reset()                    { *m = EthereumTxAck{} }
+func (m *EthereumTxAck) String() string            { return proto.CompactTextString(m) }
+func (*EthereumTxAck) ProtoMessage()               {}
+func (*EthereumTxAck) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{51} }
 
-func (m *YoCoinTxAck) GetDataChunk() []byte {
+func (m *EthereumTxAck) GetDataChunk() []byte {
 	if m != nil {
 		return m.DataChunk
 	}
@@ -2159,27 +2159,27 @@ func (m *YoCoinTxAck) GetDataChunk() []byte {
 
 // *
 // Request: Ask device to sign message
-// @next YOCMessageSignature
+// @next EthereumMessageSignature
 // @next Failure
-type YoCoinSignMessage struct {
+type EthereumSignMessage struct {
 	AddressN         []uint32 `protobuf:"varint,1,rep,name=address_n,json=addressN" json:"address_n,omitempty"`
 	Message          []byte   `protobuf:"bytes,2,req,name=message" json:"message,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *YoCoinSignMessage) Reset()                    { *m = YoCoinSignMessage{} }
-func (m *YoCoinSignMessage) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinSignMessage) ProtoMessage()               {}
-func (*YoCoinSignMessage) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{52} }
+func (m *EthereumSignMessage) Reset()                    { *m = EthereumSignMessage{} }
+func (m *EthereumSignMessage) String() string            { return proto.CompactTextString(m) }
+func (*EthereumSignMessage) ProtoMessage()               {}
+func (*EthereumSignMessage) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{52} }
 
-func (m *YoCoinSignMessage) GetAddressN() []uint32 {
+func (m *EthereumSignMessage) GetAddressN() []uint32 {
 	if m != nil {
 		return m.AddressN
 	}
 	return nil
 }
 
-func (m *YoCoinSignMessage) GetMessage() []byte {
+func (m *EthereumSignMessage) GetMessage() []byte {
 	if m != nil {
 		return m.Message
 	}
@@ -2190,33 +2190,33 @@ func (m *YoCoinSignMessage) GetMessage() []byte {
 // Request: Ask device to verify message
 // @next Success
 // @next Failure
-type YoCoinVerifyMessage struct {
+type EthereumVerifyMessage struct {
 	Address          []byte `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
 	Signature        []byte `protobuf:"bytes,2,opt,name=signature" json:"signature,omitempty"`
 	Message          []byte `protobuf:"bytes,3,opt,name=message" json:"message,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *YoCoinVerifyMessage) Reset()                    { *m = YoCoinVerifyMessage{} }
-func (m *YoCoinVerifyMessage) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinVerifyMessage) ProtoMessage()               {}
-func (*YoCoinVerifyMessage) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{53} }
+func (m *EthereumVerifyMessage) Reset()                    { *m = EthereumVerifyMessage{} }
+func (m *EthereumVerifyMessage) String() string            { return proto.CompactTextString(m) }
+func (*EthereumVerifyMessage) ProtoMessage()               {}
+func (*EthereumVerifyMessage) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{53} }
 
-func (m *YoCoinVerifyMessage) GetAddress() []byte {
+func (m *EthereumVerifyMessage) GetAddress() []byte {
 	if m != nil {
 		return m.Address
 	}
 	return nil
 }
 
-func (m *YoCoinVerifyMessage) GetSignature() []byte {
+func (m *EthereumVerifyMessage) GetSignature() []byte {
 	if m != nil {
 		return m.Signature
 	}
 	return nil
 }
 
-func (m *YoCoinVerifyMessage) GetMessage() []byte {
+func (m *EthereumVerifyMessage) GetMessage() []byte {
 	if m != nil {
 		return m.Message
 	}
@@ -2225,26 +2225,26 @@ func (m *YoCoinVerifyMessage) GetMessage() []byte {
 
 // *
 // Response: Signed message
-// @prev YOCSignMessage
-type YoCoinMessageSignature struct {
+// @prev EthereumSignMessage
+type EthereumMessageSignature struct {
 	Address          []byte `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
 	Signature        []byte `protobuf:"bytes,2,opt,name=signature" json:"signature,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *YoCoinMessageSignature) Reset()                    { *m = YoCoinMessageSignature{} }
-func (m *YoCoinMessageSignature) String() string            { return proto.CompactTextString(m) }
-func (*YoCoinMessageSignature) ProtoMessage()               {}
-func (*YoCoinMessageSignature) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{54} }
+func (m *EthereumMessageSignature) Reset()                    { *m = EthereumMessageSignature{} }
+func (m *EthereumMessageSignature) String() string            { return proto.CompactTextString(m) }
+func (*EthereumMessageSignature) ProtoMessage()               {}
+func (*EthereumMessageSignature) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{54} }
 
-func (m *YoCoinMessageSignature) GetAddress() []byte {
+func (m *EthereumMessageSignature) GetAddress() []byte {
 	if m != nil {
 		return m.Address
 	}
 	return nil
 }
 
-func (m *YoCoinMessageSignature) GetSignature() []byte {
+func (m *EthereumMessageSignature) GetSignature() []byte {
 	if m != nil {
 		return m.Signature
 	}
@@ -2806,9 +2806,9 @@ func init() {
 	proto.RegisterType((*GetPublicKey)(nil), "GetPublicKey")
 	proto.RegisterType((*PublicKey)(nil), "PublicKey")
 	proto.RegisterType((*GetAddress)(nil), "GetAddress")
-	proto.RegisterType((*YoCoinGetAddress)(nil), "YoCoinGetAddress")
+	proto.RegisterType((*EthereumGetAddress)(nil), "EthereumGetAddress")
 	proto.RegisterType((*Address)(nil), "Address")
-	proto.RegisterType((*YoCoinAddress)(nil), "YoCoinAddress")
+	proto.RegisterType((*EthereumAddress)(nil), "EthereumAddress")
 	proto.RegisterType((*WipeDevice)(nil), "WipeDevice")
 	proto.RegisterType((*LoadDevice)(nil), "LoadDevice")
 	proto.RegisterType((*ResetDevice)(nil), "ResetDevice")
@@ -2833,12 +2833,12 @@ func init() {
 	proto.RegisterType((*SimpleSignTx)(nil), "SimpleSignTx")
 	proto.RegisterType((*TxRequest)(nil), "TxRequest")
 	proto.RegisterType((*TxAck)(nil), "TxAck")
-	proto.RegisterType((*YoCoinSignTx)(nil), "YoCoinSignTx")
-	proto.RegisterType((*YoCoinTxRequest)(nil), "YoCoinTxRequest")
-	proto.RegisterType((*YoCoinTxAck)(nil), "YoCoinTxAck")
-	proto.RegisterType((*YoCoinSignMessage)(nil), "YoCoinSignMessage")
-	proto.RegisterType((*YoCoinVerifyMessage)(nil), "YoCoinVerifyMessage")
-	proto.RegisterType((*YoCoinMessageSignature)(nil), "YoCoinMessageSignature")
+	proto.RegisterType((*EthereumSignTx)(nil), "EthereumSignTx")
+	proto.RegisterType((*EthereumTxRequest)(nil), "EthereumTxRequest")
+	proto.RegisterType((*EthereumTxAck)(nil), "EthereumTxAck")
+	proto.RegisterType((*EthereumSignMessage)(nil), "EthereumSignMessage")
+	proto.RegisterType((*EthereumVerifyMessage)(nil), "EthereumVerifyMessage")
+	proto.RegisterType((*EthereumMessageSignature)(nil), "EthereumMessageSignature")
 	proto.RegisterType((*SignIdentity)(nil), "SignIdentity")
 	proto.RegisterType((*SignedIdentity)(nil), "SignedIdentity")
 	proto.RegisterType((*GetECDHSessionKey)(nil), "GetECDHSessionKey")

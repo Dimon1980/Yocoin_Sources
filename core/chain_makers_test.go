@@ -11,8 +11,8 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 func ExampleGenerateChain() {
@@ -23,7 +23,7 @@ func ExampleGenerateChain() {
 		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
 		addr2   = crypto.PubkeyToAddress(key2.PublicKey)
 		addr3   = crypto.PubkeyToAddress(key3.PublicKey)
-		db, _   = yocdb.NewMemDatabase()
+		db      = yocdb.NewMemDatabase()
 	)
 
 	// Ensure that key1 has some funds in the genesis block.
@@ -40,11 +40,11 @@ func ExampleGenerateChain() {
 	chain, _ := GenerateChain(gspec.Config, genesis, yochash.NewFaker(), db, 5, func(i int, gen *BlockGen) {
 		switch i {
 		case 0:
-			// In block 1, addr1 sends addr2 some ether.
+			// In block 1, addr1 sends addr2 some yoc.
 			tx, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(10000), params.TxGas, nil, nil), signer, key1)
 			gen.AddTx(tx)
 		case 1:
-			// In block 2, addr1 sends some more ether to addr2.
+			// In block 2, addr1 sends some more yoc to addr2.
 			// addr2 passes it on to addr3.
 			tx1, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(1000), params.TxGas, nil, nil), signer, key1)
 			tx2, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr2), addr3, big.NewInt(1000), params.TxGas, nil, nil), signer, key2)
@@ -66,7 +66,7 @@ func ExampleGenerateChain() {
 	})
 
 	// Import the chain. This runs all block validation rules.
-	blockchain, _ := NewBlockChain(db, gspec.Config, yochash.NewFaker(), vm.Config{})
+	blockchain, _ := NewBlockChain(db, nil, gspec.Config, yochash.NewFaker(), vm.Config{})
 	defer blockchain.Stop()
 
 	if i, err := blockchain.InsertChain(chain); err != nil {

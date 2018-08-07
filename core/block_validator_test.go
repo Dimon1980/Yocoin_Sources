@@ -11,15 +11,15 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/consensus/yochash"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // Tests that simple header verification works, for both good and bad blocks.
 func TestHeaderVerification(t *testing.T) {
 	// Create a simple chain to verify
 	var (
-		testdb, _ = yocdb.NewMemDatabase()
+		testdb    = yocdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
 		genesis   = gspec.MustCommit(testdb)
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, yochash.NewFaker(), testdb, 8, nil)
@@ -29,7 +29,7 @@ func TestHeaderVerification(t *testing.T) {
 		headers[i] = block.Header()
 	}
 	// Run the header checker for blocks one-by-one, checking for both valid and invalid nonces
-	chain, _ := NewBlockChain(testdb, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
+	chain, _ := NewBlockChain(testdb, nil, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
 	defer chain.Stop()
 
 	for i := 0; i < len(blocks); i++ {
@@ -71,7 +71,7 @@ func TestHeaderConcurrentVerification32(t *testing.T) { testHeaderConcurrentVeri
 func testHeaderConcurrentVerification(t *testing.T, threads int) {
 	// Create a simple chain to verify
 	var (
-		testdb, _ = yocdb.NewMemDatabase()
+		testdb    = yocdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
 		genesis   = gspec.MustCommit(testdb)
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, yochash.NewFaker(), testdb, 8, nil)
@@ -93,11 +93,11 @@ func testHeaderConcurrentVerification(t *testing.T, threads int) {
 		var results <-chan error
 
 		if valid {
-			chain, _ := NewBlockChain(testdb, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
+			chain, _ := NewBlockChain(testdb, nil, params.TestChainConfig, yochash.NewFaker(), vm.Config{})
 			_, results = chain.engine.VerifyHeaders(chain, headers, seals)
 			chain.Stop()
 		} else {
-			chain, _ := NewBlockChain(testdb, params.TestChainConfig, yochash.NewFakeFailer(uint64(len(headers)-1)), vm.Config{})
+			chain, _ := NewBlockChain(testdb, nil, params.TestChainConfig, yochash.NewFakeFailer(uint64(len(headers)-1)), vm.Config{})
 			_, results = chain.engine.VerifyHeaders(chain, headers, seals)
 			chain.Stop()
 		}
@@ -143,7 +143,7 @@ func TestHeaderConcurrentAbortion32(t *testing.T) { testHeaderConcurrentAbortion
 func testHeaderConcurrentAbortion(t *testing.T, threads int) {
 	// Create a simple chain to verify
 	var (
-		testdb, _ = yocdb.NewMemDatabase()
+		testdb    = yocdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
 		genesis   = gspec.MustCommit(testdb)
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, yochash.NewFaker(), testdb, 1024, nil)
@@ -160,7 +160,7 @@ func testHeaderConcurrentAbortion(t *testing.T, threads int) {
 	defer runtime.GOMAXPROCS(old)
 
 	// Start the verifications and immediately abort
-	chain, _ := NewBlockChain(testdb, params.TestChainConfig, yochash.NewFakeDelayer(time.Millisecond), vm.Config{})
+	chain, _ := NewBlockChain(testdb, nil, params.TestChainConfig, yochash.NewFakeDelayer(time.Millisecond), vm.Config{})
 	defer chain.Stop()
 
 	abort, results := chain.engine.VerifyHeaders(chain, headers, seals)

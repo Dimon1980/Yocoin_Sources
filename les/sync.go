@@ -7,14 +7,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/Yocoin15/Yocoin_Sources/core"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/light"
-)
-
-const (
-	//forceSyncCycle      = 10 * time.Second // Time interval to force syncs, even if few peers are available
-	minDesiredPeerCount = 5 // Amount of peers desired to start syncing
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
 )
 
 // syncer is responsible for periodically synchronising with the network, both
@@ -48,7 +43,7 @@ func (pm *ProtocolManager) syncer() {
 
 func (pm *ProtocolManager) needToSync(peerHead blockInfo) bool {
 	head := pm.blockchain.CurrentHeader()
-	currentTd := core.GetTd(pm.chainDb, head.Hash(), head.Number.Uint64())
+	currentTd := rawdb.ReadTd(pm.chainDb, head.Hash(), head.Number.Uint64())
 	return currentTd != nil && peerHead.Td.Cmp(currentTd) > 0
 }
 

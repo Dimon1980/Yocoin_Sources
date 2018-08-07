@@ -4,6 +4,7 @@
 package p2p
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +17,10 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discover"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+)
+
+var (
+	ErrShuttingDown = errors.New("shutting down")
 )
 
 const (
@@ -34,8 +39,6 @@ const (
 	discMsg      = 0x01
 	pingMsg      = 0x02
 	pongMsg      = 0x03
-	getPeersMsg  = 0x04
-	peersMsg     = 0x05
 )
 
 // protoHandshake is the RLP structure of the protocol handshake.
@@ -209,6 +212,7 @@ loop:
 			reason = discReasonForError(err)
 			break loop
 		case err = <-p.disc:
+			reason = discReasonForError(err)
 			break loop
 		}
 	}
@@ -359,7 +363,7 @@ func (p *Peer) getProto(code uint64) (*protoRW, error) {
 
 type protoRW struct {
 	Protocol
-	in     chan Msg        // receices read messages
+	in     chan Msg        // receives read messages
 	closed <-chan struct{} // receives when peer is shutting down
 	wstart <-chan struct{} // receives when write may start
 	werr   chan<- error    // for write results
@@ -381,7 +385,7 @@ func (rw *protoRW) WriteMsg(msg Msg) (err error) {
 		// as well but we don't want to rely on that.
 		rw.werr <- err
 	case <-rw.closed:
-		err = fmt.Errorf("shutting down")
+		err = ErrShuttingDown
 	}
 	return err
 }
@@ -406,6 +410,9 @@ type PeerInfo struct {
 	Network struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
+		Inbound       bool   `json:"inbound"`
+		Trusted       bool   `json:"trusted"`
+		Static        bool   `json:"static"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
@@ -426,6 +433,9 @@ func (p *Peer) Info() *PeerInfo {
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
+	info.Network.Inbound = p.rw.is(inboundConn)
+	info.Network.Trusted = p.rw.is(trustedConn)
+	info.Network.Static = p.rw.is(staticDialedConn)
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {

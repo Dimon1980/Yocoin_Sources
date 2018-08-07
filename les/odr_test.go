@@ -13,14 +13,15 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/math"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/light"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type odrTestFn func(ctx context.Context, db yocdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte
@@ -50,9 +51,13 @@ func TestOdrGetReceiptsLes2(t *testing.T) { testOdr(t, 2, 1, odrGetReceipts) }
 func odrGetReceipts(ctx context.Context, db yocdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	var receipts types.Receipts
 	if bc != nil {
-		receipts = core.GetBlockReceipts(db, bhash, core.GetBlockNumber(db, bhash))
+		if number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
+			receipts = rawdb.ReadReceipts(db, bhash, *number)
+		}
 	} else {
-		receipts, _ = light.GetBlockReceipts(ctx, lc.Odr(), bhash, core.GetBlockNumber(db, bhash))
+		if number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
+			receipts, _ = light.GetBlockReceipts(ctx, lc.Odr(), bhash, *number)
+		}
 	}
 	if receipts == nil {
 		return nil
@@ -88,7 +93,6 @@ func odrAccounts(ctx context.Context, db yocdb.Database, config *params.ChainCon
 			res = append(res, rlp...)
 		}
 	}
-
 	return res
 }
 
@@ -148,9 +152,9 @@ func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
 	peers := newPeerSet()
 	dist := newRequestDistributor(peers, make(chan struct{}))
 	rm := newRetrieveManager(peers, dist, nil)
-	db, _ := yocdb.NewMemDatabase()
-	ldb, _ := yocdb.NewMemDatabase()
-	odr := NewLesOdr(ldb, light.NewChtIndexer(db, true), light.NewBloomTrieIndexer(db, true), eth.NewBloomIndexer(db, light.BloomTrieFrequency), rm)
+	db := yocdb.NewMemDatabase()
+	ldb := yocdb.NewMemDatabase()
+	odr := NewLesOdr(ldb, light.NewChtIndexer(db, true), light.NewBloomTrieIndexer(db, true), yoc.NewBloomIndexer(db, light.BloomTrieFrequency), rm)
 	pm := newTestProtocolManagerMust(t, false, 4, testChainGen, nil, nil, db)
 	lpm := newTestProtocolManagerMust(t, true, 0, nil, peers, odr, ldb)
 	_, err1, lpeer, err2 := newTestPeerPair("peer", protocol, pm, lpm)
@@ -166,7 +170,7 @@ func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
 
 	test := func(expFail uint64) {
 		for i := uint64(0); i <= pm.blockchain.CurrentHeader().Number.Uint64(); i++ {
-			bhash := core.GetCanonicalHash(db, i)
+			bhash := rawdb.ReadCanonicalHash(db, i)
 			b1 := fn(light.NoOdr, db, pm.chainConfig, pm.blockchain.(*core.BlockChain), nil, bhash)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)

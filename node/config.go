@@ -20,6 +20,7 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discover"
+	"github.com/Yocoin15/Yocoin_Sources/rpc"
 )
 
 const (
@@ -92,10 +93,23 @@ type Config struct {
 	// useless for custom HTTP clients.
 	HTTPCors []string `toml:",omitempty"`
 
+	// HTTPVirtualHosts is the list of virtual hostnames which are allowed on incoming requests.
+	// This is by default {'localhost'}. Using this prevents attacks like
+	// DNS rebinding, which bypasses SOP by simply masquerading as being within the same
+	// origin. These attacks do not utilize CORS, since they are not cross-domain.
+	// By explicitly checking the Host-header, the server will not allow requests
+	// made against the server with a malicious host domain.
+	// Requests using ip address directly are not affected
+	HTTPVirtualHosts []string `toml:",omitempty"`
+
 	// HTTPModules is a list of API modules to expose via the HTTP RPC interface.
 	// If the module list is empty, all RPC API endpoints designated public will be
 	// exposed.
 	HTTPModules []string `toml:",omitempty"`
+
+	// HTTPTimeouts allows for customization of the timeout values used by the HTTP RPC
+	// interface.
+	HTTPTimeouts rpc.HTTPTimeouts
 
 	// WSHost is the host interface on which to start the websocket RPC server. If
 	// this field is empty, no websocket API endpoint will be started.
@@ -124,7 +138,7 @@ type Config struct {
 	WSExposeAll bool `toml:",omitempty"`
 
 	// Logger is a custom logger to use with the p2p.Server.
-	Logger log.Logger
+	Logger log.Logger `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
@@ -157,7 +171,7 @@ func (c *Config) NodeDB() string {
 	if c.DataDir == "" {
 		return "" // ephemeral
 	}
-	return c.resolvePath(datadirNodeDatabase)
+	return c.ResolvePath(datadirNodeDatabase)
 }
 
 // DefaultIPCEndpoint returns the IPC path used by default.
@@ -187,7 +201,7 @@ func DefaultHTTPEndpoint() string {
 	return config.HTTPEndpoint()
 }
 
-// WSEndpoint resolves an websocket endpoint based on the configured host interface
+// WSEndpoint resolves a websocket endpoint based on the configured host interface
 // and port parameters.
 func (c *Config) WSEndpoint() string {
 	if c.WSHost == "" {
@@ -205,9 +219,9 @@ func DefaultWSEndpoint() string {
 // NodeName returns the devp2p node identifier.
 func (c *Config) NodeName() string {
 	name := c.name()
-        // Backwards compatibility and upgrade
-	if name == "geth" || name == "geth-testnet" || name == "yocoin" {
-		name = "YoCoin"
+	// Backwards compatibility: previous versions used title-cased "Yocoin", keep that.
+	if name == "yocoin" || name == "yocoin-testnet" {
+		name = "Yocoin"
 	}
 	if c.UserIdent != "" {
 		name += "/" + c.UserIdent
@@ -232,7 +246,7 @@ func (c *Config) name() string {
 }
 
 // These resources are resolved differently for "yocoin" instances.
-var isOldGethResource = map[string]bool{
+var isOldYocoinResource = map[string]bool{
 	"chaindata":          true,
 	"nodes":              true,
 	"nodekey":            true,
@@ -240,8 +254,8 @@ var isOldGethResource = map[string]bool{
 	"trusted-nodes.json": true,
 }
 
-// resolvePath resolves path in the instance directory.
-func (c *Config) resolvePath(path string) string {
+// ResolvePath resolves path in the instance directory.
+func (c *Config) ResolvePath(path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
@@ -250,7 +264,7 @@ func (c *Config) resolvePath(path string) string {
 	}
 	// Backwards-compatibility: ensure that data directory files created
 	// by yocoin 1.4 are used if they exist.
-	if c.name() == "yocoin" && isOldGethResource[path] {
+	if c.name() == "yocoin" && isOldYocoinResource[path] {
 		oldpath := ""
 		if c.Name == "yocoin" {
 			oldpath = filepath.Join(c.DataDir, path)
@@ -287,7 +301,7 @@ func (c *Config) NodeKey() *ecdsa.PrivateKey {
 		return key
 	}
 
-	keyfile := c.resolvePath(datadirPrivateKey)
+	keyfile := c.ResolvePath(datadirPrivateKey)
 	if key, err := crypto.LoadECDSA(keyfile); err == nil {
 		return key
 	}
@@ -310,12 +324,12 @@ func (c *Config) NodeKey() *ecdsa.PrivateKey {
 
 // StaticNodes returns a list of node enode URLs configured as static nodes.
 func (c *Config) StaticNodes() []*discover.Node {
-	return c.parsePersistentNodes(c.resolvePath(datadirStaticNodes))
+	return c.parsePersistentNodes(c.ResolvePath(datadirStaticNodes))
 }
 
 // TrustedNodes returns a list of node enode URLs configured as trusted nodes.
 func (c *Config) TrustedNodes() []*discover.Node {
-	return c.parsePersistentNodes(c.resolvePath(datadirTrustedNodes))
+	return c.parsePersistentNodes(c.ResolvePath(datadirTrustedNodes))
 }
 
 // parsePersistentNodes parses a list of discovery node URLs loaded from a .json
@@ -383,7 +397,7 @@ func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
 	var ephemeral string
 	if keydir == "" {
 		// There is no datadir.
-		keydir, err = ioutil.TempDir("", "go-ethereum-keystore")
+		keydir, err = ioutil.TempDir("", "go-yocoin-keystore")
 		ephemeral = keydir
 	}
 

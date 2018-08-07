@@ -2,7 +2,7 @@
 // License placeholder #1
 
 // Package light implements on-demand retrieval capable state and chain objects
-// for the YOC Light Client.
+// for the YoCoin Light Client.
 package les
 
 import (
@@ -11,14 +11,14 @@ import (
 	"fmt"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
-	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/light"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
 	"github.com/Yocoin15/Yocoin_Sources/trie"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 var (
@@ -97,7 +97,7 @@ func (r *BlockRequest) Validate(db yocdb.Database, msg *Msg) error {
 	body := bodies[0]
 
 	// Retrieve our stored header and validate block content against it
-	header := core.GetHeader(db, r.Hash, r.Number)
+	header := rawdb.ReadHeader(db, r.Hash, r.Number)
 	if header == nil {
 		return errHeaderUnavailable
 	}
@@ -153,7 +153,7 @@ func (r *ReceiptsRequest) Validate(db yocdb.Database, msg *Msg) error {
 	receipt := receipts[0]
 
 	// Retrieve our stored header and validate receipt content against it
-	header := core.GetHeader(db, r.Hash, r.Number)
+	header := rawdb.ReadHeader(db, r.Hash, r.Number)
 	if header == nil {
 		return errHeaderUnavailable
 	}
@@ -217,7 +217,7 @@ func (r *TrieRequest) Validate(db yocdb.Database, msg *Msg) error {
 		}
 		nodeSet := proofs[0].NodeSet()
 		// Verify the proof and store if checks out
-		if _, err, _ := trie.VerifyProof(r.Id.Root, r.Key, nodeSet); err != nil {
+		if _, _, err := trie.VerifyProof(r.Id.Root, r.Key, nodeSet); err != nil {
 			return fmt.Errorf("merkle proof verification failed: %v", err)
 		}
 		r.Proof = nodeSet
@@ -228,7 +228,7 @@ func (r *TrieRequest) Validate(db yocdb.Database, msg *Msg) error {
 		// Verify the proof and store if checks out
 		nodeSet := proofs.NodeSet()
 		reads := &readTraceDB{db: nodeSet}
-		if _, err, _ := trie.VerifyProof(r.Id.Root, r.Key, reads); err != nil {
+		if _, _, err := trie.VerifyProof(r.Id.Root, r.Key, reads); err != nil {
 			return fmt.Errorf("merkle proof verification failed: %v", err)
 		}
 		// check if all nodes have been read by VerifyProof
@@ -308,7 +308,7 @@ const (
 )
 
 type HelperTrieReq struct {
-	HelperTrieType    uint
+	Type              uint
 	TrieIdx           uint64
 	Key               []byte
 	FromLevel, AuxReq uint
@@ -352,7 +352,7 @@ func (r *ChtRequest) CanSend(peer *peer) bool {
 	peer.lock.RLock()
 	defer peer.lock.RUnlock()
 
-	return peer.headInfo.Number >= light.HelperTrieConfirmations && r.ChtNum <= (peer.headInfo.Number-light.HelperTrieConfirmations)/light.ChtFrequency
+	return peer.headInfo.Number >= light.HelperTrieConfirmations && r.ChtNum <= (peer.headInfo.Number-light.HelperTrieConfirmations)/light.CHTFrequencyClient
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -361,10 +361,10 @@ func (r *ChtRequest) Request(reqID uint64, peer *peer) error {
 	var encNum [8]byte
 	binary.BigEndian.PutUint64(encNum[:], r.BlockNum)
 	req := HelperTrieReq{
-		HelperTrieType: htCanonical,
-		TrieIdx:        r.ChtNum,
-		Key:            encNum[:],
-		AuxReq:         auxHeader,
+		Type:    htCanonical,
+		TrieIdx: r.ChtNum,
+		Key:     encNum[:],
+		AuxReq:  auxHeader,
 	}
 	return peer.RequestHelperTrieProofs(reqID, r.GetCost(peer), []HelperTrieReq{req})
 }
@@ -387,7 +387,7 @@ func (r *ChtRequest) Validate(db yocdb.Database, msg *Msg) error {
 		var encNumber [8]byte
 		binary.BigEndian.PutUint64(encNumber[:], r.BlockNum)
 
-		value, err, _ := trie.VerifyProof(r.ChtRoot, encNumber[:], light.NodeList(proof.Proof).NodeSet())
+		value, _, err := trie.VerifyProof(r.ChtRoot, encNumber[:], light.NodeList(proof.Proof).NodeSet())
 		if err != nil {
 			return err
 		}
@@ -422,7 +422,7 @@ func (r *ChtRequest) Validate(db yocdb.Database, msg *Msg) error {
 		binary.BigEndian.PutUint64(encNumber[:], r.BlockNum)
 
 		reads := &readTraceDB{db: nodeSet}
-		value, err, _ := trie.VerifyProof(r.ChtRoot, encNumber[:], reads)
+		value, _, err := trie.VerifyProof(r.ChtRoot, encNumber[:], reads)
 		if err != nil {
 			return fmt.Errorf("merkle proof verification failed: %v", err)
 		}
@@ -480,14 +480,14 @@ func (r *BloomRequest) Request(reqID uint64, peer *peer) error {
 	reqs := make([]HelperTrieReq, len(r.SectionIdxList))
 
 	var encNumber [10]byte
-	binary.BigEndian.PutUint16(encNumber[0:2], uint16(r.BitIdx))
+	binary.BigEndian.PutUint16(encNumber[:2], uint16(r.BitIdx))
 
 	for i, sectionIdx := range r.SectionIdxList {
-		binary.BigEndian.PutUint64(encNumber[2:10], sectionIdx)
+		binary.BigEndian.PutUint64(encNumber[2:], sectionIdx)
 		reqs[i] = HelperTrieReq{
-			HelperTrieType: htBloomBits,
-			TrieIdx:        r.BloomTrieNum,
-			Key:            common.CopyBytes(encNumber[:]),
+			Type:    htBloomBits,
+			TrieIdx: r.BloomTrieNum,
+			Key:     common.CopyBytes(encNumber[:]),
 		}
 	}
 	return peer.RequestHelperTrieProofs(reqID, r.GetCost(peer), reqs)
@@ -512,11 +512,11 @@ func (r *BloomRequest) Validate(db yocdb.Database, msg *Msg) error {
 
 	// Verify the proofs
 	var encNumber [10]byte
-	binary.BigEndian.PutUint16(encNumber[0:2], uint16(r.BitIdx))
+	binary.BigEndian.PutUint16(encNumber[:2], uint16(r.BitIdx))
 
 	for i, idx := range r.SectionIdxList {
-		binary.BigEndian.PutUint64(encNumber[2:10], idx)
-		value, err, _ := trie.VerifyProof(r.BloomTrieRoot, encNumber[:], reads)
+		binary.BigEndian.PutUint64(encNumber[2:], idx)
+		value, _, err := trie.VerifyProof(r.BloomTrieRoot, encNumber[:], reads)
 		if err != nil {
 			return err
 		}

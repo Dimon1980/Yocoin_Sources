@@ -2,7 +2,7 @@
 // License placeholder #1
 
 /*
-Package whisper implements the Whisper protocol (version 5).
+Package whisperv5 implements the Whisper protocol (version 5).
 
 Whisper combines aspects of both DHTs and datagram messaging systems (e.g. UDP).
 As such it may be likened and compared to both, not dissimilar to the

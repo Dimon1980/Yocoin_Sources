@@ -1,6 +1,5 @@
 // Authored and revised by YOC team, 2017-2018
 // License placeholder #1
-//
 
 package tests
 
@@ -15,7 +14,7 @@ import (
 
 var (
 	mainnetChainConfig = params.ChainConfig{
-		ChainId:        big.NewInt(13),
+		ChainID:        big.NewInt(13),
 		HomesteadBlock: big.NewInt(1150000),
 		DAOForkBlock:   big.NewInt(1920000),
 		DAOForkSupport: true,

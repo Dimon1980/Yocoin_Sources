@@ -22,12 +22,12 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/consensus"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/les"
 	"github.com/Yocoin15/Yocoin_Sources/log"
 	"github.com/Yocoin15/Yocoin_Sources/p2p"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
 	"golang.org/x/net/websocket"
 )
 
@@ -36,7 +36,7 @@ const (
 	// history request.
 	historyUpdateRange = 50
 
-	// txChanSize is the size of channel listening to TxPreEvent.
+	// txChanSize is the size of channel listening to NewTxsEvent.
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
@@ -44,22 +44,22 @@ const (
 )
 
 type txPool interface {
-	// SubscribeTxPreEvent should return an event subscription of
-	// TxPreEvent and send events to the given channel.
-	SubscribeTxPreEvent(chan<- core.TxPreEvent) event.Subscription
+	// SubscribeNewTxsEvent should return an event subscription of
+	// NewTxsEvent and send events to the given channel.
+	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 }
 
 type blockChain interface {
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 }
 
-// Service implements an YOC netstats reporting daemon that pushes local
+// Service implements an YoCoin netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server *p2p.Server        // Peer-to-peer server to retrieve networking infos
-	yoc    *yoc.YoCoin      // Full YOC service if monitoring a full node
-	les    *les.LightYoCoin // Light YOC service if monitoring a light node
-	engine consensus.Engine   // Consensus engine to retrieve variadic block fields
+	server *p2p.Server      // Peer-to-peer server to retrieve networking infos
+	yoc    *yoc.YoCoin      // Full YoCoin service if monitoring a full node
+	les    *les.LightYoCoin // Light YoCoin service if monitoring a light node
+	engine consensus.Engine // Consensus engine to retrieve variadic block fields
 
 	node string // Name of the node to display on the monitoring page
 	pass string // Password to authorize access to the monitoring page
@@ -137,8 +137,8 @@ func (s *Service) loop() {
 	headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
 	defer headSub.Unsubscribe()
 
-	txEventCh := make(chan core.TxPreEvent, txChanSize)
-	txSub := txpool.SubscribeTxPreEvent(txEventCh)
+	txEventCh := make(chan core.NewTxsEvent, txChanSize)
+	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
 
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
@@ -304,7 +304,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			if !ok {
 				log.Warn("Invalid stats history request", "msg", msg["emit"][1])
 				s.histCh <- nil
-				continue // Ethstats sometime sends invalid history requests, ignore those
+				continue // Yocstats sometime sends invalid history requests, ignore those
 			}
 			list, ok := request["list"].([]interface{})
 			if !ok {
@@ -349,7 +349,7 @@ type nodeInfo struct {
 
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
-	Id     string   `json:"id"`
+	ID     string   `json:"id"`
 	Info   nodeInfo `json:"info"`
 	Secret string   `json:"secret"`
 }
@@ -360,15 +360,15 @@ func (s *Service) login(conn *websocket.Conn) error {
 	infos := s.server.NodeInfo()
 
 	var network, protocol string
-	if info := infos.Protocols["eth"]; info != nil {
+	if info := infos.Protocols["yoc"]; info != nil {
 		network = fmt.Sprintf("%d", info.(*yoc.NodeInfo).Network)
-		protocol = fmt.Sprintf("eth/%d", yoc.ProtocolVersions[0])
+		protocol = fmt.Sprintf("yoc/%d", yoc.ProtocolVersions[0])
 	} else {
 		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
 	auth := &authMsg{
-		Id: s.node,
+		ID: s.node,
 		Info: nodeInfo{
 			Name:     s.node,
 			Node:     infos.Name,
@@ -486,7 +486,7 @@ func (s uncleStats) MarshalJSON() ([]byte, error) {
 	return []byte("[]"), nil
 }
 
-// reportBlock retrieves the current chain head and repors it to the stats server.
+// reportBlock retrieves the current chain head and reports it to the stats server.
 func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	// Gather the block details from the header or block chain
 	details := s.assembleBlockStats(block)
@@ -676,7 +676,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		sync := s.yoc.Downloader().Progress()
 		syncing = s.yoc.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := s.yoc.ApiBackend.SuggestPrice(context.Background())
+		price, _ := s.yoc.APIBackend.SuggestPrice(context.Background())
 		gasprice = int(price.Uint64())
 	} else {
 		sync := s.les.Downloader().Progress()

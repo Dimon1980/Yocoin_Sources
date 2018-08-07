@@ -15,8 +15,8 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type testTxRelay struct {
@@ -68,14 +68,14 @@ func TestTxPool(t *testing.T) {
 	}
 
 	var (
-		sdb, _  = yocdb.NewMemDatabase()
-		ldb, _  = yocdb.NewMemDatabase()
+		sdb     = yocdb.NewMemDatabase()
+		ldb     = yocdb.NewMemDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
 		genesis = gspec.MustCommit(sdb)
 	)
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, params.TestChainConfig, yochash.NewFullFaker(), vm.Config{})
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, yochash.NewFullFaker(), vm.Config{})
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, yochash.NewFaker(), sdb, poolTestBlocks, txPoolTestChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)

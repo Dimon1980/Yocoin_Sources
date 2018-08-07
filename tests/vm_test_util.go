@@ -16,12 +16,12 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // VMTest checks YVM execution without block or transaction context.
-// See https://github.com/Yocoin15/Yocoin15_Sources/tests/wiki/VM-Tests for the test format specification.
+// See https://github.com/yocoin/tests/wiki/VM-Tests for the test format specification.
 type VMTest struct {
 	json vmJSON
 }
@@ -66,8 +66,7 @@ type vmExecMarshaling struct {
 }
 
 func (t *VMTest) Run(vmconfig vm.Config) error {
-	db, _ := yocdb.NewMemDatabase()
-	statedb := MakePreState(db, t.json.Pre)
+	statedb := MakePreState(yocdb.NewMemDatabase(), t.json.Pre)
 	ret, gasRemaining, err := t.exec(statedb, vmconfig)
 
 	if t.json.GasRemaining == nil {

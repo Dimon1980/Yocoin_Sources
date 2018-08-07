@@ -3,7 +3,7 @@
 
 // Contains all the wrappers from the common package.
 
-package geth
+package yocoin
 
 import (
 	"encoding/hex"
@@ -115,7 +115,7 @@ func (h *Hashes) Append(hash *Hash) {
 	h.hashes = append(h.hashes, hash.hash)
 }
 
-// Address represents the 20 byte address of an YOC account.
+// Address represents the 20 byte address of an YoCoin account.
 type Address struct {
 	address common.Address
 }

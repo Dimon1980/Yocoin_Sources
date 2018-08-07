@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2015-2018
 // License placeholder #1
 
-// Package tests implements execution of YOC JSON tests.
+// Package tests implements execution of YoCoin JSON tests.
 package tests
 
 import (
@@ -19,9 +19,9 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // A BlockTest checks handling of entire blocks.
@@ -29,6 +29,7 @@ type BlockTest struct {
 	json btJSON
 }
 
+// UnmarshalJSON implements json.Unmarshaler interface.
 func (t *BlockTest) UnmarshalJSON(in []byte) error {
 	return json.Unmarshal(in, &t.json)
 }
@@ -85,19 +86,19 @@ func (t *BlockTest) Run() error {
 	}
 
 	// import pre accounts & construct test genesis block & state root
-	db, _ := yocdb.NewMemDatabase()
+	db := yocdb.NewMemDatabase()
 	gblock, err := t.genesis(config).Commit(db)
 	if err != nil {
 		return err
 	}
 	if gblock.Hash() != t.json.Genesis.Hash {
-		return fmt.Errorf("genesis block hash doesn't match test: computed=%x, test=%x\n", gblock.Hash().Bytes()[:6], t.json.Genesis.Hash[:6])
+		return fmt.Errorf("genesis block hash doesn't match test: computed=%x, test=%x", gblock.Hash().Bytes()[:6], t.json.Genesis.Hash[:6])
 	}
 	if gblock.Root() != t.json.Genesis.StateRoot {
 		return fmt.Errorf("genesis block state root does not match test: computed=%x, test=%x", gblock.Root().Bytes()[:6], t.json.Genesis.StateRoot[:6])
 	}
 
-	chain, err := core.NewBlockChain(db, config, yochash.NewShared(), vm.Config{})
+	chain, err := core.NewBlockChain(db, nil, config, yochash.NewShared(), vm.Config{})
 	if err != nil {
 		return err
 	}
@@ -107,7 +108,7 @@ func (t *BlockTest) Run() error {
 	if err != nil {
 		return err
 	}
-	cmlast := chain.LastBlockHash()
+	cmlast := chain.CurrentBlock().Hash()
 	if common.Hash(t.json.BestBlock) != cmlast {
 		return fmt.Errorf("last block hash validation mismatch: want: %x, have: %x", t.json.BestBlock, cmlast)
 	}
@@ -137,7 +138,7 @@ func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 	}
 }
 
-/* See https://github.com/ethereum/tests/wiki/Blockchain-Tests-II
+/* See https://github.com/yocoin/tests/wiki/Blockchain-Tests-II
 
    Whether a block is valid or not is a bit subtle, it's defined by presence of
    blockHeader, transactions and uncleHeaders fields. If they are missing, the block is

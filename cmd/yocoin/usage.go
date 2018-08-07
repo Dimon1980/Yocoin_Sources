@@ -9,17 +9,18 @@ import (
 	"io"
 	"sort"
 
+	"strings"
+
 	"github.com/Yocoin15/Yocoin_Sources/cmd/utils"
 	"github.com/Yocoin15/Yocoin_Sources/internal/debug"
 	"gopkg.in/urfave/cli.v1"
-	"strings"
 )
 
 // AppHelpTemplate is the test template for the default, global app help topic.
 var AppHelpTemplate = `NAME:
    {{.App.Name}} - {{.App.Usage}}
 
-   Copyright 2018 YoCoin
+   Copyright 2013-2018 The yocoin Authors
 
 USAGE:
    {{.App.HelpName}} [options]{{if .App.Commands}} command [command options]{{end}} {{if .App.ArgsUsage}}{{.App.ArgsUsage}}{{else}}[arguments...]{{end}}
@@ -51,7 +52,7 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
-		Name: "ETHEREUM",
+		Name: "YOCOIN",
 		Flags: []cli.Flag{
 			configFileFlag,
 			utils.DataDirFlag,
@@ -61,28 +62,30 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.TestnetFlag,
 			utils.RinkebyFlag,
 			utils.SyncModeFlag,
-			utils.EthStatsURLFlag,
+			utils.GCModeFlag,
+			utils.YocStatsURLFlag,
 			utils.IdentityFlag,
 			utils.LightServFlag,
 			utils.LightPeersFlag,
 			utils.LightKDFFlag,
 		},
 	},
-	{Name: "DEVELOPER CHAIN",
+	{
+		Name: "DEVELOPER CHAIN",
 		Flags: []cli.Flag{
 			utils.DeveloperFlag,
 			utils.DeveloperPeriodFlag,
 		},
 	},
 	{
-		Name: "ETHASH",
+		Name: "YOCHASH",
 		Flags: []cli.Flag{
-			utils.EthashCacheDirFlag,
-			utils.EthashCachesInMemoryFlag,
-			utils.EthashCachesOnDiskFlag,
-			utils.EthashDatasetDirFlag,
-			utils.EthashDatasetsInMemoryFlag,
-			utils.EthashDatasetsOnDiskFlag,
+			utils.YochashCacheDirFlag,
+			utils.YochashCachesInMemoryFlag,
+			utils.YochashCachesOnDiskFlag,
+			utils.YochashDatasetDirFlag,
+			utils.YochashDatasetsInMemoryFlag,
+			utils.YochashDatasetsOnDiskFlag,
 		},
 	},
 	//{
@@ -114,6 +117,8 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "PERFORMANCE TUNING",
 		Flags: []cli.Flag{
 			utils.CacheFlag,
+			utils.CacheDatabaseFlag,
+			utils.CacheGCFlag,
 			utils.TrieCacheGenFlag,
 		},
 	},
@@ -139,6 +144,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.IPCDisabledFlag,
 			utils.IPCPathFlag,
 			utils.RPCCORSDomainFlag,
+			utils.RPCVirtualHostsFlag,
 			utils.JSpathFlag,
 			utils.ExecFlag,
 			utils.PreloadJSFlag,
@@ -166,7 +172,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.MiningEnabledFlag,
 			utils.MinerThreadsFlag,
-			utils.EtherbaseFlag,
+			utils.YOCbaseFlag,
 			utils.TargetGasLimitFlag,
 			utils.GasPriceFlag,
 			utils.ExtraDataFlag,
@@ -188,10 +194,21 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "LOGGING AND DEBUGGING",
 		Flags: append([]cli.Flag{
-			utils.MetricsEnabledFlag,
 			utils.FakePoWFlag,
 			utils.NoCompactionFlag,
 		}, debug.Flags...),
+	},
+	{
+		Name: "METRICS AND STATS",
+		Flags: []cli.Flag{
+			utils.MetricsEnabledFlag,
+			utils.MetricsEnableInfluxDBFlag,
+			utils.MetricsInfluxDBEndpointFlag,
+			utils.MetricsInfluxDBDatabaseFlag,
+			utils.MetricsInfluxDBUsernameFlag,
+			utils.MetricsInfluxDBPasswordFlag,
+			utils.MetricsInfluxDBHostTagFlag,
+		},
 	},
 	{
 		Name:  "WHISPER (EXPERIMENTAL)",

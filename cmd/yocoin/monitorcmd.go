@@ -42,7 +42,7 @@ var (
 		ArgsUsage: " ",
 		Category:  "MONITOR COMMANDS",
 		Description: `
-The YoCoin monitor is a tool to collect and visualize various internal metrics
+The Geth monitor is a tool to collect and visualize various internal metrics
 gathered by the node, supporting different chart types as well as the capacity
 to display multiple metrics simultaneously.
 `,
@@ -60,7 +60,7 @@ func monitor(ctx *cli.Context) error {
 		client *rpc.Client
 		err    error
 	)
-	// Attach to an YOC node over IPC or RPC
+	// Attach to an YoCoin node over IPC or RPC
 	endpoint := ctx.String(monitorCommandAttachFlag.Name)
 	if client, err = dialRPC(endpoint); err != nil {
 		utils.Fatalf("Unable to attach to yocoin node: %v", err)
@@ -172,12 +172,12 @@ func resolveMetric(metrics map[string]interface{}, pattern string, path string) 
 	parts := strings.SplitN(pattern, "/", 2)
 	if len(parts) > 1 {
 		for _, variation := range strings.Split(parts[0], ",") {
-			if submetrics, ok := metrics[variation].(map[string]interface{}); !ok {
+			submetrics, ok := metrics[variation].(map[string]interface{})
+			if !ok {
 				utils.Fatalf("Failed to retrieve system metrics: %s", path+variation)
 				return nil
-			} else {
-				results = append(results, resolveMetric(submetrics, parts[1], path+variation+"/")...)
 			}
+			results = append(results, resolveMetric(submetrics, parts[1], path+variation+"/")...)
 		}
 		return results
 	}

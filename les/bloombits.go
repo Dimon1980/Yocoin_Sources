@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// bloomServiceThreads is the number of goroutines used globally by an YOC
+	// bloomServiceThreads is the number of goroutines used globally by an YoCoin
 	// instance to service bloombits lookups for all running filters.
 	bloomServiceThreads = 16
 
@@ -30,18 +30,18 @@ const (
 
 // startBloomHandlers starts a batch of goroutines to accept bloom bit database
 // retrievals from possibly a range of filters and serving the data to satisfy.
-func (eth *LightYoCoin) startBloomHandlers() {
+func (yoc *LightYoCoin) startBloomHandlers() {
 	for i := 0; i < bloomServiceThreads; i++ {
 		go func() {
 			for {
 				select {
-				case <-eth.shutdownChan:
+				case <-yoc.shutdownChan:
 					return
 
-				case request := <-eth.bloomRequests:
+				case request := <-yoc.bloomRequests:
 					task := <-request
 					task.Bitsets = make([][]byte, len(task.Sections))
-					compVectors, err := light.GetBloomBits(task.Context, eth.odr, task.Bit, task.Sections)
+					compVectors, err := light.GetBloomBits(task.Context, yoc.odr, task.Bit, task.Sections)
 					if err == nil {
 						for i := range task.Sections {
 							if blob, err := bitutil.DecompressBytes(compVectors[i], int(light.BloomTrieFrequency/8)); err == nil {
@@ -59,13 +59,3 @@ func (eth *LightYoCoin) startBloomHandlers() {
 		}()
 	}
 }
-
-const (
-	// bloomConfirms is the number of confirmation blocks before a bloom section is
-	// considered probably final and its rotated bits are calculated.
-	bloomConfirms = 256
-
-	// bloomThrottling is the time to wait between processing two consecutive index
-	// sections. It's useful during chain upgrades to prevent disk overload.
-	bloomThrottling = 100 * time.Millisecond
-)

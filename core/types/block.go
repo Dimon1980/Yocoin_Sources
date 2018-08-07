@@ -1,17 +1,17 @@
 // Authored and revised by YOC team, 2014-2018
 // License placeholder #1
 
-// Package types contains data types related to YOC consensus.
+// Package types contains data types related to YoCoin consensus.
 package types
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math/big"
 	"sort"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/hexutil"
@@ -53,7 +53,7 @@ func (n *BlockNonce) UnmarshalText(input []byte) error {
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
 
-// Header represents a block header in the YOC blockchain.
+// Header represents a block header in the YoCoin blockchain.
 type Header struct {
 	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
 	UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
@@ -108,6 +108,12 @@ func (h *Header) HashNoNonce() common.Hash {
 	})
 }
 
+// Size returns the approximate memory used by all internal contents. It is used
+// to approximate and limit the memory consumption of various caches.
+func (h *Header) Size() common.StorageSize {
+	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+h.Time.BitLen())/8)
+}
+
 func rlpHash(x interface{}) (h common.Hash) {
 	hw := sha3.NewKeccak256()
 	rlp.Encode(hw, x)
@@ -122,7 +128,7 @@ type Body struct {
 	Uncles       []*Header
 }
 
-// Block represents an entire block in the YOC blockchain.
+// Block represents an entire block in the YoCoin blockchain.
 type Block struct {
 	header       *Header
 	uncles       []*Header
@@ -136,7 +142,7 @@ type Block struct {
 	// of the chain up to and including the block.
 	td *big.Int
 
-	// These fields are used by package eth to track
+	// These fields are used by package yoc to track
 	// inter-peer block relay.
 	ReceivedAt   time.Time
 	ReceivedFrom interface{}
@@ -155,7 +161,7 @@ func (b *Block) DeprecatedTd() *big.Int {
 // would otherwise need to be recomputed.
 type StorageBlock Block
 
-// "external" block encoding. used for eth protocol, etc.
+// "external" block encoding. used for yoc protocol, etc.
 type extblock struct {
 	Header *Header
 	Txs    []*Transaction
@@ -237,7 +243,7 @@ func CopyHeader(h *Header) *Header {
 	return &cpy
 }
 
-// DecodeRLP decodes the YOC
+// DecodeRLP decodes the YoCoin
 func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	var eb extblock
 	_, size, _ := s.Kind()
@@ -249,7 +255,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// EncodeRLP serializes b into the YOC RLP block format.
+// EncodeRLP serializes b into the YoCoin RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header: b.header,
@@ -309,6 +315,8 @@ func (b *Block) HashNoNonce() common.Hash {
 	return b.header.HashNoNonce()
 }
 
+// Size returns the true RLP encoded storage size of the block, either by encoding
+// and returning it, or returning a previsouly cached value.
 func (b *Block) Size() common.StorageSize {
 	if size := b.size.Load(); size != nil {
 		return size.(common.StorageSize)
@@ -365,40 +373,6 @@ func (b *Block) Hash() common.Hash {
 	v := b.header.Hash()
 	b.hash.Store(v)
 	return v
-}
-
-func (b *Block) String() string {
-	str := fmt.Sprintf(`Block(#%v): Size: %v {
-MinerHash: %x
-%v
-Transactions:
-%v
-Uncles:
-%v
-}
-`, b.Number(), b.Size(), b.header.HashNoNonce(), b.header, b.transactions, b.uncles)
-	return str
-}
-
-func (h *Header) String() string {
-	return fmt.Sprintf(`Header(%x):
-[
-	ParentHash:	    %x
-	UncleHash:	    %x
-	Coinbase:	    %x
-	Root:		    %x
-	TxSha		    %x
-	ReceiptSha:	    %x
-	Bloom:		    %x
-	Difficulty:	    %v
-	Number:		    %v
-	GasLimit:	    %v
-	GasUsed:	    %v
-	Time:		    %v
-	Extra:		    %s
-	MixDigest:      %x
-	Nonce:		    %x
-]`, h.Hash(), h.ParentHash, h.UncleHash, h.Coinbase, h.Root, h.TxHash, h.ReceiptHash, h.Bloom, h.Difficulty, h.Number, h.GasLimit, h.GasUsed, h.Time, h.Extra, h.MixDigest, h.Nonce)
 }
 
 type Blocks []*Block

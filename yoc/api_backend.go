@@ -12,66 +12,72 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common/math"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/bloombits"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
-// YOCApiBackend implements yocapi.Backend for full nodes
-type YOCApiBackend struct {
-	eth *YoCoin
+// YocAPIBackend implements yocapi.Backend for full nodes
+type YocAPIBackend struct {
+	yoc *YoCoin
 	gpo *gasprice.Oracle
 }
 
-func (b *YOCApiBackend) ChainConfig() *params.ChainConfig {
-	return b.eth.chainConfig
+// ChainConfig returns the active chain configuration.
+func (b *YocAPIBackend) ChainConfig() *params.ChainConfig {
+	return b.yoc.chainConfig
 }
 
-func (b *YOCApiBackend) CurrentBlock() *types.Block {
-	return b.eth.blockchain.CurrentBlock()
+func (b *YocAPIBackend) CurrentBlock() *types.Block {
+	return b.yoc.blockchain.CurrentBlock()
 }
 
-func (b *YOCApiBackend) SetHead(number uint64) {
-	b.eth.protocolManager.downloader.Cancel()
-	b.eth.blockchain.SetHead(number)
+func (b *YocAPIBackend) SetHead(number uint64) {
+	b.yoc.protocolManager.downloader.Cancel()
+	b.yoc.blockchain.SetHead(number)
 }
 
-func (b *YOCApiBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error) {
+func (b *YocAPIBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if blockNr == rpc.PendingBlockNumber {
-		block := b.eth.miner.PendingBlock()
+		block := b.yoc.miner.PendingBlock()
 		return block.Header(), nil
 	}
 	// Otherwise resolve and return the block
 	if blockNr == rpc.LatestBlockNumber {
-		return b.eth.blockchain.CurrentBlock().Header(), nil
+		return b.yoc.blockchain.CurrentBlock().Header(), nil
 	}
-	return b.eth.blockchain.GetHeaderByNumber(uint64(blockNr)), nil
+	return b.yoc.blockchain.GetHeaderByNumber(uint64(blockNr)), nil
 }
 
-func (b *YOCApiBackend) BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Block, error) {
+func (b *YocAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	return b.yoc.blockchain.GetHeaderByHash(hash), nil
+}
+
+func (b *YocAPIBackend) BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Block, error) {
 	// Pending block is only known by the miner
 	if blockNr == rpc.PendingBlockNumber {
-		block := b.eth.miner.PendingBlock()
+		block := b.yoc.miner.PendingBlock()
 		return block, nil
 	}
 	// Otherwise resolve and return the block
 	if blockNr == rpc.LatestBlockNumber {
-		return b.eth.blockchain.CurrentBlock(), nil
+		return b.yoc.blockchain.CurrentBlock(), nil
 	}
-	return b.eth.blockchain.GetBlockByNumber(uint64(blockNr)), nil
+	return b.yoc.blockchain.GetBlockByNumber(uint64(blockNr)), nil
 }
 
-func (b *YOCApiBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
+func (b *YocAPIBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	// Pending state is only known by the miner
 	if blockNr == rpc.PendingBlockNumber {
-		block, state := b.eth.miner.Pending()
+		block, state := b.yoc.miner.Pending()
 		return state, block.Header(), nil
 	}
 	// Otherwise resolve the block number and return its state
@@ -79,56 +85,75 @@ func (b *YOCApiBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.
 	if header == nil || err != nil {
 		return nil, nil, err
 	}
-	stateDb, err := b.eth.BlockChain().StateAt(header.Root)
+	stateDb, err := b.yoc.BlockChain().StateAt(header.Root)
 	return stateDb, header, err
 }
 
-func (b *YOCApiBackend) GetBlock(ctx context.Context, blockHash common.Hash) (*types.Block, error) {
-	return b.eth.blockchain.GetBlockByHash(blockHash), nil
+func (b *YocAPIBackend) GetBlock(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	return b.yoc.blockchain.GetBlockByHash(hash), nil
 }
 
-func (b *YOCApiBackend) GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
-	return core.GetBlockReceipts(b.eth.chainDb, blockHash, core.GetBlockNumber(b.eth.chainDb, blockHash)), nil
+func (b *YocAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
+	if number := rawdb.ReadHeaderNumber(b.yoc.chainDb, hash); number != nil {
+		return rawdb.ReadReceipts(b.yoc.chainDb, hash, *number), nil
+	}
+	return nil, nil
 }
 
-func (b *YOCApiBackend) GetTd(blockHash common.Hash) *big.Int {
-	return b.eth.blockchain.GetTdByHash(blockHash)
+func (b *YocAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
+	number := rawdb.ReadHeaderNumber(b.yoc.chainDb, hash)
+	if number == nil {
+		return nil, nil
+	}
+	receipts := rawdb.ReadReceipts(b.yoc.chainDb, hash, *number)
+	if receipts == nil {
+		return nil, nil
+	}
+	logs := make([][]*types.Log, len(receipts))
+	for i, receipt := range receipts {
+		logs[i] = receipt.Logs
+	}
+	return logs, nil
 }
 
-func (b *YOCApiBackend) GetYVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg vm.Config) (*vm.YVM, func() error, error) {
+func (b *YocAPIBackend) GetTd(blockHash common.Hash) *big.Int {
+	return b.yoc.blockchain.GetTdByHash(blockHash)
+}
+
+func (b *YocAPIBackend) GetYVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg vm.Config) (*vm.YVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	context := core.NewYVMContext(msg, header, b.eth.BlockChain(), nil)
-	return vm.NewYVM(context, state, b.eth.chainConfig, vmCfg), vmError, nil
+	context := core.NewYVMContext(msg, header, b.yoc.BlockChain(), nil)
+	return vm.NewYVM(context, state, b.yoc.chainConfig, vmCfg), vmError, nil
 }
 
-func (b *YOCApiBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
-	return b.eth.BlockChain().SubscribeRemovedLogsEvent(ch)
+func (b *YocAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
+	return b.yoc.BlockChain().SubscribeRemovedLogsEvent(ch)
 }
 
-func (b *YOCApiBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
-	return b.eth.BlockChain().SubscribeChainEvent(ch)
+func (b *YocAPIBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
+	return b.yoc.BlockChain().SubscribeChainEvent(ch)
 }
 
-func (b *YOCApiBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
-	return b.eth.BlockChain().SubscribeChainHeadEvent(ch)
+func (b *YocAPIBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
+	return b.yoc.BlockChain().SubscribeChainHeadEvent(ch)
 }
 
-func (b *YOCApiBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
-	return b.eth.BlockChain().SubscribeChainSideEvent(ch)
+func (b *YocAPIBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
+	return b.yoc.BlockChain().SubscribeChainSideEvent(ch)
 }
 
-func (b *YOCApiBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
-	return b.eth.BlockChain().SubscribeLogsEvent(ch)
+func (b *YocAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
+	return b.yoc.BlockChain().SubscribeLogsEvent(ch)
 }
 
-func (b *YOCApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	return b.eth.txPool.AddLocal(signedTx)
+func (b *YocAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
+	return b.yoc.txPool.AddLocal(signedTx)
 }
 
-func (b *YOCApiBackend) GetPoolTransactions() (types.Transactions, error) {
-	pending, err := b.eth.txPool.Pending()
+func (b *YocAPIBackend) GetPoolTransactions() (types.Transactions, error) {
+	pending, err := b.yoc.txPool.Pending()
 	if err != nil {
 		return nil, err
 	}
@@ -139,57 +164,57 @@ func (b *YOCApiBackend) GetPoolTransactions() (types.Transactions, error) {
 	return txs, nil
 }
 
-func (b *YOCApiBackend) GetPoolTransaction(hash common.Hash) *types.Transaction {
-	return b.eth.txPool.Get(hash)
+func (b *YocAPIBackend) GetPoolTransaction(hash common.Hash) *types.Transaction {
+	return b.yoc.txPool.Get(hash)
 }
 
-func (b *YOCApiBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
-	return b.eth.txPool.State().GetNonce(addr), nil
+func (b *YocAPIBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
+	return b.yoc.txPool.State().GetNonce(addr), nil
 }
 
-func (b *YOCApiBackend) Stats() (pending int, queued int) {
-	return b.eth.txPool.Stats()
+func (b *YocAPIBackend) Stats() (pending int, queued int) {
+	return b.yoc.txPool.Stats()
 }
 
-func (b *YOCApiBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	return b.eth.TxPool().Content()
+func (b *YocAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
+	return b.yoc.TxPool().Content()
 }
 
-func (b *YOCApiBackend) SubscribeTxPreEvent(ch chan<- core.TxPreEvent) event.Subscription {
-	return b.eth.TxPool().SubscribeTxPreEvent(ch)
+func (b *YocAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
+	return b.yoc.TxPool().SubscribeNewTxsEvent(ch)
 }
 
-func (b *YOCApiBackend) Downloader() *downloader.Downloader {
-	return b.eth.Downloader()
+func (b *YocAPIBackend) Downloader() *downloader.Downloader {
+	return b.yoc.Downloader()
 }
 
-func (b *YOCApiBackend) ProtocolVersion() int {
-	return b.eth.YOCVersion()
+func (b *YocAPIBackend) ProtocolVersion() int {
+	return b.yoc.YocVersion()
 }
 
-func (b *YOCApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
+func (b *YocAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return b.gpo.SuggestPrice(ctx)
 }
 
-func (b *YOCApiBackend) ChainDb() yocdb.Database {
-	return b.eth.ChainDb()
+func (b *YocAPIBackend) ChainDb() yocdb.Database {
+	return b.yoc.ChainDb()
 }
 
-func (b *YOCApiBackend) EventMux() *event.TypeMux {
-	return b.eth.EventMux()
+func (b *YocAPIBackend) EventMux() *event.TypeMux {
+	return b.yoc.EventMux()
 }
 
-func (b *YOCApiBackend) AccountManager() *accounts.Manager {
-	return b.eth.AccountManager()
+func (b *YocAPIBackend) AccountManager() *accounts.Manager {
+	return b.yoc.AccountManager()
 }
 
-func (b *YOCApiBackend) BloomStatus() (uint64, uint64) {
-	sections, _, _ := b.eth.bloomIndexer.Sections()
+func (b *YocAPIBackend) BloomStatus() (uint64, uint64) {
+	sections, _, _ := b.yoc.bloomIndexer.Sections()
 	return params.BloomBitsBlocks, sections
 }
 
-func (b *YOCApiBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
+func (b *YocAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
 	for i := 0; i < bloomFilterThreads; i++ {
-		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.eth.bloomRequests)
+		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.yoc.bloomRequests)
 	}
 }

@@ -1,4 +1,4 @@
-// Authored and revised by YOC team, 2016-2018
+// Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
 package tracers
@@ -473,12 +473,7 @@ func (jst *Tracer) call(method string, args ...string) (json.RawMessage, error) 
 }
 
 func wrapError(context string, err error) error {
-	var message string
-	switch err := err.(type) {
-	default:
-		message = err.Error()
-	}
-	return fmt.Errorf("%v    in server-side tracer function '%v'", message, context)
+	return fmt.Errorf("%v    in server-side tracer function '%v'", err, context)
 }
 
 // CaptureStart implements the Tracer interface to initialize the tracing operation.

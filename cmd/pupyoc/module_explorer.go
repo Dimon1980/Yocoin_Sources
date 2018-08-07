@@ -25,12 +25,12 @@ ADD chain.json /chain.json
 RUN \
   echo '(cd ../eth-net-intelligence-api && pm2 start /yocstats.json)' >  explorer.sh && \
 	echo '(cd ../etherchain-light && npm start &)'                      >> explorer.sh && \
-	echo '/parity/parity --chain=/chain.json --port={{.NodePort}} --tracing=on --fat-db=on --pruning=archive' >> explorer.sh
+	echo 'exec /parity/parity --chain=/chain.json --port={{.NodePort}} --tracing=on --fat-db=on --pruning=archive' >> explorer.sh
 
 ENTRYPOINT ["/bin/sh", "explorer.sh"]
 `
 
-// explorerEthstats is the configuration file for the yocstats javascript client.
+// explorerYocstats is the configuration file for the yocstats javascript client.
 var explorerEthstats = `[
   {
     "name"              : "node-app",
@@ -69,7 +69,7 @@ services:
       - "{{.NodePort}}:{{.NodePort}}/udp"{{if not .VHost}}
       - "{{.WebPort}}:3000"{{end}}
     volumes:
-      - {{.Datadir}}:/root/.local/share/io.parity.ethereum
+      - {{.Datadir}}:/root/.local/share/io.parity.yocoin
     environment:
       - NODE_PORT={{.NodePort}}/tcp
       - STATS={{.Ethstats}}{{if .VHost}}
@@ -127,9 +127,9 @@ func deployExplorer(client *sshClient, network string, chainspec []byte, config 
 
 	// Build and deploy the boot or seal node service
 	if nocache {
-		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate", workdir, network, network))
+		return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s build --pull --no-cache && docker-compose -p %s up -d --force-recreate --timeout 60", workdir, network, network))
 	}
-	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate", workdir, network))
+	return nil, client.Stream(fmt.Sprintf("cd %s && docker-compose -p %s up -d --build --force-recreate --timeout 60", workdir, network))
 }
 
 // explorerInfos is returned from a block explorer status check to allow reporting
@@ -155,7 +155,7 @@ func (info *explorerInfos) Report() map[string]string {
 	return report
 }
 
-// checkExplorer does a health-check against an block explorer server to verify
+// checkExplorer does a health-check against a block explorer server to verify
 // whether it's running, and if yes, whether it's responsive.
 func checkExplorer(client *sshClient, network string) (*explorerInfos, error) {
 	// Inspect a possible block explorer container on the host
@@ -188,7 +188,7 @@ func checkExplorer(client *sshClient, network string) (*explorerInfos, error) {
 	}
 	// Assemble and return the useful infos
 	stats := &explorerInfos{
-		datadir:  infos.volumes["/root/.local/share/io.parity.ethereum"],
+		datadir:  infos.volumes["/root/.local/share/io.parity.yocoin"],
 		nodePort: nodePort,
 		webHost:  host,
 		webPort:  webPort,

@@ -1,4 +1,4 @@
-// Authored and revised by YOC team, 2017-2018
+// Authored and revised by YOC team, 2015-2018
 // License placeholder #1
 
 package tests
@@ -19,13 +19,13 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
 	"github.com/Yocoin15/Yocoin_Sources/crypto/sha3"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // StateTest checks transaction processing without block context.
-// See https://github.com/ethereum/EIPs/issues/176 for the test format specification.
+// See https://github.com/yocoin/EIPs/issues/176 for the test format specification.
 type StateTest struct {
 	json stJSON
 }
@@ -112,9 +112,8 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateD
 	if !ok {
 		return nil, UnsupportedForkError{subtest.Fork}
 	}
-	block, _ := t.genesis(config).ToBlock()
-	db, _ := yocdb.NewMemDatabase()
-	statedb := MakePreState(db, t.json.Pre)
+	block := t.genesis(config).ToBlock(nil)
+	statedb := MakePreState(yocdb.NewMemDatabase(), t.json.Pre)
 
 	post := t.json.Post[subtest.Fork][subtest.Index]
 	msg, err := t.json.Tx.toMessage(post)
@@ -134,7 +133,7 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateD
 	if logs := rlpHash(statedb.Logs()); logs != common.Hash(post.Logs) {
 		return statedb, fmt.Errorf("post state logs hash mismatch: got %x, want %x", logs, post.Logs)
 	}
-	root, _ := statedb.CommitTo(db, config.IsEIP158(block.Number()))
+	root, _ := statedb.Commit(config.IsEIP158(block.Number()))
 	if root != common.Hash(post.Root) {
 		return statedb, fmt.Errorf("post state root mismatch: got %x, want %x", root, post.Root)
 	}
@@ -157,7 +156,7 @@ func MakePreState(db yocdb.Database, accounts core.GenesisAlloc) *state.StateDB 
 		}
 	}
 	// Commit and re-open to start with a clean state.
-	root, _ := statedb.CommitTo(db, false)
+	root, _ := statedb.Commit(false)
 	statedb, _ = state.New(root, sdb)
 	return statedb
 }
@@ -206,7 +205,7 @@ func (tx *stTransaction) toMessage(ps stPostState) (core.Message, error) {
 	dataHex := tx.Data[ps.Indexes.Data]
 	valueHex := tx.Value[ps.Indexes.Value]
 	gasLimit := tx.GasLimit[ps.Indexes.Gas]
-	// Value, Data hex encoding is messy: https://github.com/ethereum/tests/issues/203
+	// Value, Data hex encoding is messy: https://github.com/yocoin/tests/issues/203
 	value := new(big.Int)
 	if valueHex != "0x" {
 		v, ok := math.ParseBig256(valueHex)

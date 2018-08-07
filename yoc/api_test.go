@@ -1,4 +1,4 @@
-// Authored and revised by YOC team, 2016-2018
+// Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
 package yoc
@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/yocdb"
+	"github.com/davecgh/go-spew/spew"
 )
 
 var dumper = spew.ConfigState{Indent: "    "}
@@ -18,8 +18,7 @@ var dumper = spew.ConfigState{Indent: "    "}
 func TestStorageRangeAt(t *testing.T) {
 	// Create a state where account 0x010000... has a few storage entries.
 	var (
-		db, _    = yocdb.NewMemDatabase()
-		state, _ = state.New(common.Hash{}, state.NewDatabase(db))
+		state, _ = state.New(common.Hash{}, state.NewDatabase(yocdb.NewMemDatabase()))
 		addr     = common.Address{0x01}
 		keys     = []common.Hash{ // hashes of Keys of storage
 			common.HexToHash("340dd630ad21bf010b4e676dbfa9ba9a02175262d1fa356232cfde6cb5b47ef2"),

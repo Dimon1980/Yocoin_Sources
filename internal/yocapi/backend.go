@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2015-2018
 // License placeholder #1
 
-// Package yocapi implements the general YOC API functions.
+// Package yocapi implements the general YoCoin API functions.
 package yocapi
 
 import (
@@ -14,17 +14,17 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/core/vm"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 // Backend interface provides the common API services (that are provided by
 // both full and light clients) with access to necessary functions.
 type Backend interface {
-	// General YOC API
+	// General YoCoin API
 	Downloader() *downloader.Downloader
 	ProtocolVersion() int
 	SuggestPrice(ctx context.Context) (*big.Int, error)
@@ -52,7 +52,7 @@ type Backend interface {
 	GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error)
 	Stats() (pending int, queued int)
 	TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
-	SubscribeTxPreEvent(chan<- core.TxPreEvent) event.Subscription
+	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
@@ -62,17 +62,17 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 	nonceLock := new(AddrLocker)
 	return []rpc.API{
 		{
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
-			Service:   NewPublicYOCAPI(apiBackend),
+			Service:   NewPublicYoCoinAPI(apiBackend),
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   NewPublicBlockChainAPI(apiBackend),
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   NewPublicTransactionPoolAPI(apiBackend, nonceLock),
 			Public:    true,
@@ -91,7 +91,7 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Version:   "1.0",
 			Service:   NewPrivateDebugAPI(apiBackend),
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   NewPublicAccountAPI(apiBackend.AccountManager()),
 			Public:    true,

@@ -4,6 +4,7 @@
 package mailserver
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"io/ioutil"
@@ -13,7 +14,7 @@ import (
 
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/crypto"
-	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv5"
+	whisper "github.com/Yocoin15/Yocoin_Sources/whisper/whisperv6"
 )
 
 const powRequirement = 0.00001
@@ -48,7 +49,7 @@ func generateEnvelope(t *testing.T) *whisper.Envelope {
 	h := crypto.Keccak256Hash([]byte("test sample data"))
 	params := &whisper.MessageParams{
 		KeySym:   h[:],
-		Topic:    whisper.TopicType{},
+		Topic:    whisper.TopicType{0x1F, 0x7E, 0xA1, 0x7F},
 		Payload:  []byte("test payload"),
 		PoW:      powRequirement,
 		WorkTime: 2,
@@ -78,7 +79,10 @@ func TestMailServer(t *testing.T) {
 	shh = whisper.New(&whisper.DefaultConfig)
 	shh.RegisterServer(&server)
 
-	server.Init(shh, dir, password, powRequirement)
+	err = server.Init(shh, dir, password, powRequirement)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer server.Close()
 
 	keyID, err = shh.AddSymKeyFromPassword(password)
@@ -108,6 +112,7 @@ func deliverTest(t *testing.T, server *WMailServer, env *whisper.Envelope) {
 		upp:   birth + 1,
 		key:   testPeerID,
 	}
+
 	singleRequest(t, server, env, p, true)
 
 	p.low, p.upp = birth+1, 0xffffffff
@@ -118,14 +123,14 @@ func deliverTest(t *testing.T, server *WMailServer, env *whisper.Envelope) {
 
 	p.low = birth - 1
 	p.upp = birth + 1
-	p.topic[0]++
+	p.topic[0] = 0xFF
 	singleRequest(t, server, env, p, false)
 }
 
 func singleRequest(t *testing.T, server *WMailServer, env *whisper.Envelope, p *ServerTestParams, expect bool) {
 	request := createRequest(t, p)
 	src := crypto.FromECDSAPub(&p.key.PublicKey)
-	ok, lower, upper, topic := server.validateRequest(src, request)
+	ok, lower, upper, bloom := server.validateRequest(src, request)
 	if !ok {
 		t.Fatalf("request validation failed, seed: %d.", seed)
 	}
@@ -135,12 +140,13 @@ func singleRequest(t *testing.T, server *WMailServer, env *whisper.Envelope, p *
 	if upper != p.upp {
 		t.Fatalf("request validation failed (upper bound), seed: %d.", seed)
 	}
-	if topic != p.topic {
+	expectedBloom := whisper.TopicToBloom(p.topic)
+	if !bytes.Equal(bloom, expectedBloom) {
 		t.Fatalf("request validation failed (topic), seed: %d.", seed)
 	}
 
 	var exist bool
-	mail := server.processRequest(nil, p.low, p.upp, p.topic)
+	mail := server.processRequest(nil, p.low, p.upp, bloom)
 	for _, msg := range mail {
 		if msg.Hash() == env.Hash() {
 			exist = true
@@ -153,17 +159,19 @@ func singleRequest(t *testing.T, server *WMailServer, env *whisper.Envelope, p *
 	}
 
 	src[0]++
-	ok, lower, upper, topic = server.validateRequest(src, request)
-	if ok {
-		t.Fatalf("request validation false positive, seed: %d (lower: %d, upper: %d).", seed, lower, upper)
+	ok, lower, upper, bloom = server.validateRequest(src, request)
+	if !ok {
+		// request should be valid regardless of signature
+		t.Fatalf("request validation false negative, seed: %d (lower: %d, upper: %d).", seed, lower, upper)
 	}
 }
 
 func createRequest(t *testing.T, p *ServerTestParams) *whisper.Envelope {
-	data := make([]byte, 8+whisper.TopicLength)
+	bloom := whisper.TopicToBloom(p.topic)
+	data := make([]byte, 8)
 	binary.BigEndian.PutUint32(data, p.low)
 	binary.BigEndian.PutUint32(data[4:], p.upp)
-	copy(data[8:], p.topic[:])
+	data = append(data, bloom...)
 
 	key, err := shh.GetSymKey(keyID)
 	if err != nil {

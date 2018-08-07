@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-// Package les implements the Light YOC Subprotocol.
+// Package les implements the Light YoCoin Subprotocol.
 package les
 
 import (
@@ -15,12 +15,8 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/consensus"
 	"github.com/Yocoin15/Yocoin_Sources/core"
 	"github.com/Yocoin15/Yocoin_Sources/core/bloombits"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
-	"github.com/Yocoin15/Yocoin_Sources/yoc"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/filters"
-	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
-	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 	"github.com/Yocoin15/Yocoin_Sources/internal/yocapi"
 	"github.com/Yocoin15/Yocoin_Sources/light"
@@ -30,9 +26,16 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/p2p/discv5"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	rpc "github.com/Yocoin15/Yocoin_Sources/rpc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/downloader"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/filters"
+	"github.com/Yocoin15/Yocoin_Sources/yoc/gasprice"
+	"github.com/Yocoin15/Yocoin_Sources/yocdb"
 )
 
 type LightYoCoin struct {
+	config *yoc.Config
+
 	odr         *LesOdr
 	relay       *LesTxRelay
 	chainConfig *params.ChainConfig
@@ -64,8 +67,8 @@ type LightYoCoin struct {
 	wg sync.WaitGroup
 }
 
-func New(ctx *node.ServiceContext, config * yoc.Config) (*LightYoCoin, error) {
-	chainDb, err :=  yoc.CreateDB(ctx, config, "lightchaindata")
+func New(ctx *node.ServiceContext, config *yoc.Config) (*LightYoCoin, error) {
+	chainDb, err := yoc.CreateDB(ctx, config, "lightchaindata")
 	if err != nil {
 		return nil, err
 	}
@@ -78,48 +81,49 @@ func New(ctx *node.ServiceContext, config * yoc.Config) (*LightYoCoin, error) {
 	peers := newPeerSet()
 	quitSync := make(chan struct{})
 
-	leth := &LightYoCoin{
+	lyoc := &LightYoCoin{
+		config:           config,
 		chainConfig:      chainConfig,
 		chainDb:          chainDb,
 		eventMux:         ctx.EventMux,
 		peers:            peers,
 		reqDist:          newRequestDistributor(peers, quitSync),
 		accountManager:   ctx.AccountManager,
-		engine:            yoc.CreateConsensusEngine(ctx, &config.Ethash, chainConfig, chainDb),
+		engine:           yoc.CreateConsensusEngine(ctx, &config.Yochash, chainConfig, chainDb),
 		shutdownChan:     make(chan bool),
 		networkId:        config.NetworkId,
 		bloomRequests:    make(chan chan *bloombits.Retrieval),
-		bloomIndexer:      yoc.NewBloomIndexer(chainDb, light.BloomTrieFrequency),
+		bloomIndexer:     yoc.NewBloomIndexer(chainDb, light.BloomTrieFrequency),
 		chtIndexer:       light.NewChtIndexer(chainDb, true),
 		bloomTrieIndexer: light.NewBloomTrieIndexer(chainDb, true),
 	}
 
-	leth.relay = NewLesTxRelay(peers, leth.reqDist)
-	leth.serverPool = newServerPool(chainDb, quitSync, &leth.wg)
-	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
-	leth.odr = NewLesOdr(chainDb, leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer, leth.retriever)
-	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
+	lyoc.relay = NewLesTxRelay(peers, lyoc.reqDist)
+	lyoc.serverPool = newServerPool(chainDb, quitSync, &lyoc.wg)
+	lyoc.retriever = newRetrieveManager(peers, lyoc.reqDist, lyoc.serverPool)
+	lyoc.odr = NewLesOdr(chainDb, lyoc.chtIndexer, lyoc.bloomTrieIndexer, lyoc.bloomIndexer, lyoc.retriever)
+	if lyoc.blockchain, err = light.NewLightChain(lyoc.odr, lyoc.chainConfig, lyoc.engine); err != nil {
 		return nil, err
 	}
-	leth.bloomIndexer.Start(leth.blockchain)
+	lyoc.bloomIndexer.Start(lyoc.blockchain)
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
-		leth.blockchain.SetHead(compat.RewindTo)
-		core.WriteChainConfig(chainDb, genesisHash, chainConfig)
+		lyoc.blockchain.SetHead(compat.RewindTo)
+		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
-	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, true, ClientProtocolVersions, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, quitSync, &leth.wg); err != nil {
+	lyoc.txPool = light.NewTxPool(lyoc.chainConfig, lyoc.blockchain, lyoc.relay)
+	if lyoc.protocolManager, err = NewProtocolManager(lyoc.chainConfig, true, ClientProtocolVersions, config.NetworkId, lyoc.eventMux, lyoc.engine, lyoc.peers, lyoc.blockchain, nil, chainDb, lyoc.odr, lyoc.relay, lyoc.serverPool, quitSync, &lyoc.wg); err != nil {
 		return nil, err
 	}
-	leth.ApiBackend = &LesApiBackend{leth, nil}
+	lyoc.ApiBackend = &LesApiBackend{lyoc, nil}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.GasPrice
 	}
-	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
-	return leth, nil
+	lyoc.ApiBackend.gpo = gasprice.NewOracle(lyoc.ApiBackend, gpoParams)
+	return lyoc, nil
 }
 
 func lesTopic(genesisHash common.Hash, protocolVersion uint) discv5.Topic {
@@ -137,12 +141,12 @@ func lesTopic(genesisHash common.Hash, protocolVersion uint) discv5.Topic {
 
 type LightDummyAPI struct{}
 
-// Etherbase is the address that mining rewards will be send to
-func (s *LightDummyAPI) Etherbase() (common.Address, error) {
+// YOCbase is the address that mining rewards will be send to
+func (s *LightDummyAPI) YOCbase() (common.Address, error) {
 	return common.Address{}, fmt.Errorf("not supported")
 }
 
-// Coinbase is the address that mining rewards will be send to (alias for Etherbase)
+// Coinbase is the address that mining rewards will be send to (alias for YOCbase)
 func (s *LightDummyAPI) Coinbase() (common.Address, error) {
 	return common.Address{}, fmt.Errorf("not supported")
 }
@@ -157,22 +161,22 @@ func (s *LightDummyAPI) Mining() bool {
 	return false
 }
 
-// APIs returns the collection of RPC services the ethereum package offers.
+// APIs returns the collection of RPC services the yocoin package offers.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *LightYoCoin) APIs() []rpc.API {
 	return append(yocapi.GetAPIs(s.ApiBackend), []rpc.API{
 		{
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   &LightDummyAPI{},
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   downloader.NewPublicDownloaderAPI(s.protocolManager.downloader, s.eventMux),
 			Public:    true,
 		}, {
-			Namespace: "eth",
+			Namespace: "yoc",
 			Version:   "1.0",
 			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
 			Public:    true,
@@ -203,7 +207,7 @@ func (s *LightYoCoin) Protocols() []p2p.Protocol {
 }
 
 // Start implements node.Service, starting all internal goroutines needed by the
-// YOC protocol implementation.
+// YoCoin protocol implementation.
 func (s *LightYoCoin) Start(srvr *p2p.Server) error {
 	s.startBloomHandlers()
 	log.Warn("Light client mode is an experimental feature")
@@ -211,12 +215,12 @@ func (s *LightYoCoin) Start(srvr *p2p.Server) error {
 	// clients are searching for the first advertised protocol in the list
 	protocolVersion := AdvertiseProtocolVersions[0]
 	s.serverPool.start(srvr, lesTopic(s.blockchain.Genesis().Hash(), protocolVersion))
-	s.protocolManager.Start()
+	s.protocolManager.Start(s.config.LightPeers)
 	return nil
 }
 
 // Stop implements node.Service, terminating all internal goroutines used by the
-// YOC protocol.
+// YoCoin protocol.
 func (s *LightYoCoin) Stop() error {
 	s.odr.Stop()
 	if s.bloomIndexer != nil {
@@ -231,6 +235,7 @@ func (s *LightYoCoin) Stop() error {
 	s.blockchain.Stop()
 	s.protocolManager.Stop()
 	s.txPool.Stop()
+	s.engine.Close()
 
 	s.eventMux.Stop()
 

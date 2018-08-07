@@ -6,6 +6,7 @@ package yoc
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -15,91 +16,57 @@ import (
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/common/hexutil"
 	"github.com/Yocoin15/Yocoin_Sources/core"
+	"github.com/Yocoin15/Yocoin_Sources/core/rawdb"
 	"github.com/Yocoin15/Yocoin_Sources/core/state"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
+	"github.com/Yocoin15/Yocoin_Sources/internal/yocapi"
 	"github.com/Yocoin15/Yocoin_Sources/log"
-	"github.com/Yocoin15/Yocoin_Sources/miner"
 	"github.com/Yocoin15/Yocoin_Sources/params"
 	"github.com/Yocoin15/Yocoin_Sources/rlp"
 	"github.com/Yocoin15/Yocoin_Sources/rpc"
 	"github.com/Yocoin15/Yocoin_Sources/trie"
 )
 
-// PublicYOCAPI provides an API to access YOC full node-related
+// PublicYoCoinAPI provides an API to access YoCoin full node-related
 // information.
-type PublicYOCAPI struct {
+type PublicYoCoinAPI struct {
 	e *YoCoin
 }
 
-// NewPublicYOCAPI creates a new YOC protocol API for full nodes.
-func NewPublicYOCAPI(e *YoCoin) *PublicYOCAPI {
-	return &PublicYOCAPI{e}
+// NewPublicYoCoinAPI creates a new YoCoin protocol API for full nodes.
+func NewPublicYoCoinAPI(e *YoCoin) *PublicYoCoinAPI {
+	return &PublicYoCoinAPI{e}
 }
 
-// Etherbase is the address that mining rewards will be send to
-func (api *PublicYOCAPI) Etherbase() (common.Address, error) {
-	return api.e.Etherbase()
+// YOCbase is the address that mining rewards will be send to
+func (api *PublicYoCoinAPI) YOCbase() (common.Address, error) {
+	return api.e.YOCbase()
 }
 
-// Coinbase is the address that mining rewards will be send to (alias for Etherbase)
-func (api *PublicYOCAPI) Coinbase() (common.Address, error) {
-	return api.Etherbase()
+// Coinbase is the address that mining rewards will be send to (alias for YOCbase)
+func (api *PublicYoCoinAPI) Coinbase() (common.Address, error) {
+	return api.YOCbase()
 }
 
 // Hashrate returns the POW hashrate
-func (api *PublicYOCAPI) Hashrate() hexutil.Uint64 {
+func (api *PublicYoCoinAPI) Hashrate() hexutil.Uint64 {
 	return hexutil.Uint64(api.e.Miner().HashRate())
 }
 
 // PublicMinerAPI provides an API to control the miner.
 // It offers only methods that operate on data that pose no security risk when it is publicly accessible.
 type PublicMinerAPI struct {
-	e     *YoCoin
-	agent *miner.RemoteAgent
+	e *YoCoin
 }
 
 // NewPublicMinerAPI create a new PublicMinerAPI instance.
 func NewPublicMinerAPI(e *YoCoin) *PublicMinerAPI {
-	agent := miner.NewRemoteAgent(e.BlockChain(), e.Engine())
-	e.Miner().Register(agent)
-
-	return &PublicMinerAPI{e, agent}
+	return &PublicMinerAPI{e}
 }
 
 // Mining returns an indication if this node is currently mining.
 func (api *PublicMinerAPI) Mining() bool {
 	return api.e.IsMining()
-}
-
-// SubmitWork can be used by external miner to submit their POW solution. It returns an indication if the work was
-// accepted. Note, this is not an indication if the provided work was valid!
-func (api *PublicMinerAPI) SubmitWork(nonce types.BlockNonce, solution, digest common.Hash) bool {
-	return api.agent.SubmitWork(nonce, digest, solution)
-}
-
-// GetWork returns a work package for external miner. The work package consists of 3 strings
-// result[0], 32 bytes hex encoded current block header pow-hash
-// result[1], 32 bytes hex encoded seed hash used for DAG
-// result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
-func (api *PublicMinerAPI) GetWork() ([3]string, error) {
-	if !api.e.IsMining() {
-		if err := api.e.StartMining(false); err != nil {
-			return [3]string{}, err
-		}
-	}
-	work, err := api.agent.GetWork()
-	if err != nil {
-		return work, fmt.Errorf("mining not ready: %v", err)
-	}
-	return work, nil
-}
-
-// SubmitHashrate can be used for remote miners to submit their hash rate. This enables the node to report the combined
-// hash rate of all miners which submit work through this node. It accepts the miner hash rate and an identifier which
-// must be unique between nodes.
-func (api *PublicMinerAPI) SubmitHashrate(hashrate hexutil.Uint64, id common.Hash) bool {
-	api.agent.SubmitHashrate(id, uint64(hashrate))
-	return true
 }
 
 // PrivateMinerAPI provides private RPC methods to control the miner.
@@ -116,7 +83,8 @@ func NewPrivateMinerAPI(e *YoCoin) *PrivateMinerAPI {
 // Start the miner with the given number of threads. If threads is nil the number
 // of workers started is equal to the number of logical CPUs that are usable by
 // this process. If mining is already running, this method adjust the number of
-// threads allowed to use.
+// threads allowed to use and updates the minimum price required by the transaction
+// pool.
 func (api *PrivateMinerAPI) Start(threads *int) error {
 	// Set the number of threads if the seal engine supports it
 	if threads == nil {
@@ -137,7 +105,6 @@ func (api *PrivateMinerAPI) Start(threads *int) error {
 		api.e.lock.RLock()
 		price := api.e.gasPrice
 		api.e.lock.RUnlock()
-
 		api.e.txPool.SetGasPrice(price)
 		return api.e.StartMining(true)
 	}
@@ -174,27 +141,27 @@ func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 	return true
 }
 
-// SetEtherbase sets the etherbase of the miner
-func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
-	api.e.SetEtherbase(etherbase)
+// SetYOCbase sets the yocbase of the miner
+func (api *PrivateMinerAPI) SetYOCbase(yocbase common.Address) bool {
+	api.e.SetYOCbase(yocbase)
 	return true
 }
 
 // GetHashrate returns the current hashrate of the miner.
 func (api *PrivateMinerAPI) GetHashrate() uint64 {
-	return uint64(api.e.miner.HashRate())
+	return api.e.miner.HashRate()
 }
 
-// PrivateAdminAPI is the collection of YOC full node-related APIs
+// PrivateAdminAPI is the collection of YoCoin full node-related APIs
 // exposed over the private admin endpoint.
 type PrivateAdminAPI struct {
-	eth *YoCoin
+	yoc *YoCoin
 }
 
 // NewPrivateAdminAPI creates a new API definition for the full node private
-// admin methods of the YOC service.
-func NewPrivateAdminAPI(eth *YoCoin) *PrivateAdminAPI {
-	return &PrivateAdminAPI{eth: eth}
+// admin methods of the YoCoin service.
+func NewPrivateAdminAPI(yoc *YoCoin) *PrivateAdminAPI {
+	return &PrivateAdminAPI{yoc: yoc}
 }
 
 // ExportChain exports the current blockchain into a local file.
@@ -213,7 +180,7 @@ func (api *PrivateAdminAPI) ExportChain(file string) (bool, error) {
 	}
 
 	// Export the blockchain
-	if err := api.eth.BlockChain().Export(writer); err != nil {
+	if err := api.yoc.BlockChain().Export(writer); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -265,12 +232,12 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 			break
 		}
 
-		if hasAllBlocks(api.eth.BlockChain(), blocks) {
+		if hasAllBlocks(api.yoc.BlockChain(), blocks) {
 			blocks = blocks[:0]
 			continue
 		}
 		// Import the batch and reset the buffer
-		if _, err := api.eth.BlockChain().InsertChain(blocks); err != nil {
+		if _, err := api.yoc.BlockChain().InsertChain(blocks); err != nil {
 			return false, fmt.Errorf("batch %d: failed to insert: %v", batch, err)
 		}
 		blocks = blocks[:0]
@@ -278,16 +245,16 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	return true, nil
 }
 
-// PublicDebugAPI is the collection of YOC full node APIs exposed
+// PublicDebugAPI is the collection of YoCoin full node APIs exposed
 // over the public debugging endpoint.
 type PublicDebugAPI struct {
-	eth *YoCoin
+	yoc *YoCoin
 }
 
 // NewPublicDebugAPI creates a new API definition for the full node-
-// related public debug methods of the YOC service.
-func NewPublicDebugAPI(eth *YoCoin) *PublicDebugAPI {
-	return &PublicDebugAPI{eth: eth}
+// related public debug methods of the YoCoin service.
+func NewPublicDebugAPI(yoc *YoCoin) *PublicDebugAPI {
+	return &PublicDebugAPI{yoc: yoc}
 }
 
 // DumpBlock retrieves the entire state of the database at a given block.
@@ -296,48 +263,74 @@ func (api *PublicDebugAPI) DumpBlock(blockNr rpc.BlockNumber) (state.Dump, error
 		// If we're dumping the pending state, we need to request
 		// both the pending block as well as the pending state from
 		// the miner and operate on those
-		_, stateDb := api.eth.miner.Pending()
+		_, stateDb := api.yoc.miner.Pending()
 		return stateDb.RawDump(), nil
 	}
 	var block *types.Block
 	if blockNr == rpc.LatestBlockNumber {
-		block = api.eth.blockchain.CurrentBlock()
+		block = api.yoc.blockchain.CurrentBlock()
 	} else {
-		block = api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
+		block = api.yoc.blockchain.GetBlockByNumber(uint64(blockNr))
 	}
 	if block == nil {
 		return state.Dump{}, fmt.Errorf("block #%d not found", blockNr)
 	}
-	stateDb, err := api.eth.BlockChain().StateAt(block.Root())
+	stateDb, err := api.yoc.BlockChain().StateAt(block.Root())
 	if err != nil {
 		return state.Dump{}, err
 	}
 	return stateDb.RawDump(), nil
 }
 
-// PrivateDebugAPI is the collection of YOC full node APIs exposed over
+// PrivateDebugAPI is the collection of YoCoin full node APIs exposed over
 // the private debugging endpoint.
 type PrivateDebugAPI struct {
 	config *params.ChainConfig
-	eth    *YoCoin
+	yoc    *YoCoin
 }
 
 // NewPrivateDebugAPI creates a new API definition for the full node-related
-// private debug methods of the YOC service.
-func NewPrivateDebugAPI(config *params.ChainConfig, eth *YoCoin) *PrivateDebugAPI {
-	return &PrivateDebugAPI{config: config, eth: eth}
+// private debug methods of the YoCoin service.
+func NewPrivateDebugAPI(config *params.ChainConfig, yoc *YoCoin) *PrivateDebugAPI {
+	return &PrivateDebugAPI{config: config, yoc: yoc}
 }
 
 // Preimage is a debug API function that returns the preimage for a sha3 hash, if known.
 func (api *PrivateDebugAPI) Preimage(ctx context.Context, hash common.Hash) (hexutil.Bytes, error) {
-	db := core.PreimageTable(api.eth.ChainDb())
-	return db.Get(hash.Bytes())
+	if preimage := rawdb.ReadPreimage(api.yoc.ChainDb(), hash); preimage != nil {
+		return preimage, nil
+	}
+	return nil, errors.New("unknown preimage")
 }
 
-// GetBadBLocks returns a list of the last 'bad blocks' that the client has seen on the network
+// BadBlockArgs represents the entries in the list returned when bad blocks are queried.
+type BadBlockArgs struct {
+	Hash  common.Hash            `json:"hash"`
+	Block map[string]interface{} `json:"block"`
+	RLP   string                 `json:"rlp"`
+}
+
+// GetBadBlocks returns a list of the last 'bad blocks' that the client has seen on the network
 // and returns them as a JSON list of block-hashes
-func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]core.BadBlockArgs, error) {
-	return api.eth.BlockChain().BadBlocks()
+func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, error) {
+	blocks := api.yoc.BlockChain().BadBlocks()
+	results := make([]*BadBlockArgs, len(blocks))
+
+	var err error
+	for i, block := range blocks {
+		results[i] = &BadBlockArgs{
+			Hash: block.Hash(),
+		}
+		if rlpBytes, err := rlp.EncodeToBytes(block); err != nil {
+			results[i].RLP = err.Error() // Hacky, but hey, it works
+		} else {
+			results[i].RLP = fmt.Sprintf("0x%x", rlpBytes)
+		}
+		if results[i].Block, err = yocapi.RPCMarshalBlock(block, true, true); err != nil {
+			results[i].Block = map[string]interface{}{"error": err.Error()}
+		}
+	}
+	return results, nil
 }
 
 // StorageRangeResult is the result of a debug_storageRangeAt API call.
@@ -389,7 +382,7 @@ func storageRangeAt(st state.Trie, start []byte, maxResult int) (StorageRangeRes
 	return result, nil
 }
 
-// GetModifiedAccountsByumber returns all accounts that have changed between the
+// GetModifiedAccountsByNumber returns all accounts that have changed between the
 // two blocks specified. A change is defined as a difference in nonce, balance,
 // code hash, or storage hash.
 //
@@ -397,19 +390,19 @@ func storageRangeAt(st state.Trie, start []byte, maxResult int) (StorageRangeRes
 func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum *uint64) ([]common.Address, error) {
 	var startBlock, endBlock *types.Block
 
-	startBlock = api.eth.blockchain.GetBlockByNumber(startNum)
+	startBlock = api.yoc.blockchain.GetBlockByNumber(startNum)
 	if startBlock == nil {
 		return nil, fmt.Errorf("start block %x not found", startNum)
 	}
 
 	if endNum == nil {
 		endBlock = startBlock
-		startBlock = api.eth.blockchain.GetBlockByHash(startBlock.ParentHash())
+		startBlock = api.yoc.blockchain.GetBlockByHash(startBlock.ParentHash())
 		if startBlock == nil {
 			return nil, fmt.Errorf("block %x has no parent", endBlock.Number())
 		}
 	} else {
-		endBlock = api.eth.blockchain.GetBlockByNumber(*endNum)
+		endBlock = api.yoc.blockchain.GetBlockByNumber(*endNum)
 		if endBlock == nil {
 			return nil, fmt.Errorf("end block %d not found", *endNum)
 		}
@@ -424,19 +417,19 @@ func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum 
 // With one parameter, returns the list of accounts modified in the specified block.
 func (api *PrivateDebugAPI) GetModifiedAccountsByHash(startHash common.Hash, endHash *common.Hash) ([]common.Address, error) {
 	var startBlock, endBlock *types.Block
-	startBlock = api.eth.blockchain.GetBlockByHash(startHash)
+	startBlock = api.yoc.blockchain.GetBlockByHash(startHash)
 	if startBlock == nil {
 		return nil, fmt.Errorf("start block %x not found", startHash)
 	}
 
 	if endHash == nil {
 		endBlock = startBlock
-		startBlock = api.eth.blockchain.GetBlockByHash(startBlock.ParentHash())
+		startBlock = api.yoc.blockchain.GetBlockByHash(startBlock.ParentHash())
 		if startBlock == nil {
 			return nil, fmt.Errorf("block %x has no parent", endBlock.Number())
 		}
 	} else {
-		endBlock = api.eth.blockchain.GetBlockByHash(*endHash)
+		endBlock = api.yoc.blockchain.GetBlockByHash(*endHash)
 		if endBlock == nil {
 			return nil, fmt.Errorf("end block %x not found", *endHash)
 		}
@@ -449,11 +442,11 @@ func (api *PrivateDebugAPI) getModifiedAccounts(startBlock, endBlock *types.Bloc
 		return nil, fmt.Errorf("start block height (%d) must be less than end block height (%d)", startBlock.Number().Uint64(), endBlock.Number().Uint64())
 	}
 
-	oldTrie, err := trie.NewSecure(startBlock.Root(), api.eth.chainDb, 0)
+	oldTrie, err := trie.NewSecure(startBlock.Root(), trie.NewDatabase(api.yoc.chainDb), 0)
 	if err != nil {
 		return nil, err
 	}
-	newTrie, err := trie.NewSecure(endBlock.Root(), api.eth.chainDb, 0)
+	newTrie, err := trie.NewSecure(endBlock.Root(), trie.NewDatabase(api.yoc.chainDb), 0)
 	if err != nil {
 		return nil, err
 	}

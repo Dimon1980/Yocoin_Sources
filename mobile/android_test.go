@@ -1,7 +1,7 @@
 // Authored and revised by YOC team, 2016-2018
 // License placeholder #1
 
-package geth
+package yocoin
 
 import (
 	"io/ioutil"
@@ -27,7 +27,7 @@ import android.test.MoreAsserts;
 import java.math.BigInteger;
 import java.util.Arrays;
 
-import org.ethereum.geth.*;
+import org.yocoin.geth.*;
 
 public class AndroidTest extends InstrumentationTestCase {
 	public AndroidTest() {}
@@ -83,7 +83,7 @@ public class AndroidTest extends InstrumentationTestCase {
 
 		try {
 			// Start up a new inprocess node
-			Node node = new Node(getInstrumentation().getContext().getFilesDir() + "/.ethereum", new NodeConfig());
+			Node node = new Node(getInstrumentation().getContext().getFilesDir() + "/.yocoin", new NodeConfig());
 			node.start();
 
 			// Retrieve some data via function calls (we don't really care about the results)
@@ -93,7 +93,7 @@ public class AndroidTest extends InstrumentationTestCase {
 			info.getProtocols();
 
 			// Retrieve some data via the APIs (we don't really care about the results)
-			YOCClient ec = node.getYOCClient();
+			EthereumClient ec = node.getEthereumClient();
 			ec.getBlockByNumber(ctx, -1).getNumber();
 
 			NewHeadHandler handler = new NewHeadHandler() {
@@ -171,7 +171,7 @@ func TestAndroid(t *testing.T) {
 		t.Logf("initialization took %v", time.Since(start))
 	}
 	// Create and switch to a temporary workspace
-	workspace, err := ioutil.TempDir("", "geth-android-")
+	workspace, err := ioutil.TempDir("", "yocoin-android-")
 	if err != nil {
 		t.Fatalf("failed to create temporary workspace: %v", err)
 	}
@@ -187,21 +187,21 @@ func TestAndroid(t *testing.T) {
 	defer os.Chdir(pwd)
 
 	// Create the skeleton of the Android project
-	for _, dir := range []string{"src/main", "src/androidTest/java/org/ethereum/gethtest", "libs"} {
+	for _, dir := range []string{"src/main", "src/androidTest/java/org/ethereum/yocointest", "libs"} {
 		err = os.MkdirAll(dir, os.ModePerm)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	// Generate the mobile bindings for Geth and add the tester class
-	gobind := exec.Command("gomobile", "bind", "-javapkg", "org.ethereum", "github.com/Yocoin15/Yocoin_Sources/mobile")
+	// Generate the mobile bindings for Yocoin and add the tester class
+	gobind := exec.Command("gomobile", "bind", "-javapkg", "org.yocoin", "github.com/yocoin/go-yocoin/mobile")
 	if output, err := gobind.CombinedOutput(); err != nil {
 		t.Logf("%s", output)
 		t.Fatalf("failed to run gomobile bind: %v", err)
 	}
-	build.CopyFile(filepath.Join("libs", "geth.aar"), "geth.aar", os.ModePerm)
+	build.CopyFile(filepath.Join("libs", "yocoin.aar"), "yocoin.aar", os.ModePerm)
 
-	if err = ioutil.WriteFile(filepath.Join("src", "androidTest", "java", "org", "ethereum", "gethtest", "AndroidTest.java"), []byte(androidTestClass), os.ModePerm); err != nil {
+	if err = ioutil.WriteFile(filepath.Join("src", "androidTest", "java", "org", "yocoin", "yocointest", "AndroidTest.java"), []byte(androidTestClass), os.ModePerm); err != nil {
 		t.Fatalf("failed to write Android test class: %v", err)
 	}
 	// Finish creating the project and run the tests via gradle
@@ -219,7 +219,7 @@ func TestAndroid(t *testing.T) {
 
 const androidManifest = `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="org.ethereum.gethtest"
+          package="org.yocoin.yocointest"
 	  android:versionCode="1"
 	  android:versionName="1.0">
 
@@ -248,6 +248,6 @@ repositories {
 }
 dependencies {
     compile 'com.android.support:appcompat-v7:19.0.0'
-    compile(name: "geth", ext: "aar")
+    compile(name: "yocoin", ext: "aar")
 }
 `

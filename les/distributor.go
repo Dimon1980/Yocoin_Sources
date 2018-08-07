@@ -2,7 +2,7 @@
 // License placeholder #1
 
 // Package light implements on-demand retrieval capable state and chain objects
-// for the YOC Light Client.
+// for the YoCoin Light Client.
 package les
 
 import (

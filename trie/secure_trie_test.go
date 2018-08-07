@@ -15,16 +15,16 @@ import (
 )
 
 func newEmptySecure() *SecureTrie {
-	db, _ := yocdb.NewMemDatabase()
-	trie, _ := NewSecure(common.Hash{}, db, 0)
+	trie, _ := NewSecure(common.Hash{}, NewDatabase(yocdb.NewMemDatabase()), 0)
 	return trie
 }
 
 // makeTestSecureTrie creates a large enough secure trie for testing.
-func makeTestSecureTrie() (yocdb.Database, *SecureTrie, map[string][]byte) {
+func makeTestSecureTrie() (*Database, *SecureTrie, map[string][]byte) {
 	// Create an empty trie
-	db, _ := yocdb.NewMemDatabase()
-	trie, _ := NewSecure(common.Hash{}, db, 0)
+	triedb := NewDatabase(yocdb.NewMemDatabase())
+
+	trie, _ := NewSecure(common.Hash{}, triedb, 0)
 
 	// Fill it with some arbitrary data
 	content := make(map[string][]byte)
@@ -45,21 +45,21 @@ func makeTestSecureTrie() (yocdb.Database, *SecureTrie, map[string][]byte) {
 			trie.Update(key, val)
 		}
 	}
-	trie.Commit()
+	trie.Commit(nil)
 
 	// Return the generated trie
-	return db, trie, content
+	return triedb, trie, content
 }
 
 func TestSecureDelete(t *testing.T) {
 	trie := newEmptySecure()
 	vals := []struct{ k, v string }{
 		{"do", "verb"},
-		{"ether", "wookiedoo"},
+		{"yoc", "wookiedoo"},
 		{"horse", "stallion"},
 		{"shaman", "horse"},
 		{"doge", "coin"},
-		{"ether", ""},
+		{"yoc", ""},
 		{"dog", "puppy"},
 		{"shaman", ""},
 	}
@@ -124,7 +124,7 @@ func TestSecureTrieConcurrency(t *testing.T) {
 					tries[index].Update(key, val)
 				}
 			}
-			tries[index].Commit()
+			tries[index].Commit(nil)
 		}(i)
 	}
 	// Wait for all threads to finish

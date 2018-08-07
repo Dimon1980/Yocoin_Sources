@@ -59,7 +59,7 @@ func (w *wizard) deployDashboard() {
 			var port int
 			switch service {
 			case "yocstats":
-				if infos, err := checkEthstats(client, w.network); err == nil {
+				if infos, err := checkYocstats(client, w.network); err == nil {
 					port = infos.port
 				}
 			case "explorer":

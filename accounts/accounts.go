@@ -1,22 +1,22 @@
 // Authored and revised by YOC team, 2017-2018
 // License placeholder #1
 
-// Package accounts implements high level YOC account management.
+// Package accounts implements high level YoCoin account management.
 package accounts
 
 import (
 	"math/big"
 
-	ethereum "github.com/Yocoin15/Yocoin_Sources"
+	yocoin "github.com/Yocoin15/Yocoin_Sources"
 	"github.com/Yocoin15/Yocoin_Sources/common"
 	"github.com/Yocoin15/Yocoin_Sources/core/types"
 	"github.com/Yocoin15/Yocoin_Sources/event"
 )
 
-// Account represents an YOC account located at a specific location defined
+// Account represents an YoCoin account located at a specific location defined
 // by the optional URL field.
 type Account struct {
-	Address common.Address `json:"address"` // YOC account address derived from the key
+	Address common.Address `json:"address"` // YoCoin account address derived from the key
 	URL     URL            `json:"url"`     // Optional resource locator within a backend
 }
 
@@ -72,7 +72,7 @@ type Wallet interface {
 	//
 	// You can disable automatic account discovery by calling SelfDerive with a nil
 	// chain state reader.
-	SelfDerive(base DerivationPath, chain ethereum.ChainStateReader)
+	SelfDerive(base DerivationPath, chain yocoin.ChainStateReader)
 
 	// SignHash requests the wallet to sign the given hash.
 	//
